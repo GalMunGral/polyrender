@@ -15,7 +15,7 @@ class ActiveEdge {
 export class Polygon {
   private _visibleEdges: Array<Edge> | null = null;
   private _triangularMesh: Mesh;
-  private paths: Array<CyclicList<Vector>>;
+  public paths: Array<CyclicList<Vector>>;
 
   constructor(paths: Array<CyclicList<Vector>>) {
     this.paths = paths.map(function dedupe(path) {

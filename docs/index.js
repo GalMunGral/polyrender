@@ -515,25 +515,25 @@ function tinf_inflate_uncompressed_block(d) {
 }
 function tinf_uncompress(source, dest) {
   var d = new Data(source, dest);
-  var bfinal, btype, res;
+  var bfinal, btype, res2;
   do {
     bfinal = tinf_getbit(d);
     btype = tinf_read_bits(d, 2, 0);
     switch (btype) {
       case 0:
-        res = tinf_inflate_uncompressed_block(d);
+        res2 = tinf_inflate_uncompressed_block(d);
         break;
       case 1:
-        res = tinf_inflate_block_data(d, sltree, sdtree);
+        res2 = tinf_inflate_block_data(d, sltree, sdtree);
         break;
       case 2:
         tinf_decode_trees(d, d.ltree, d.dtree);
-        res = tinf_inflate_block_data(d, d.ltree, d.dtree);
+        res2 = tinf_inflate_block_data(d, d.ltree, d.dtree);
         break;
       default:
-        res = TINF_DATA_ERROR;
+        res2 = TINF_DATA_ERROR;
     }
-    if (res !== TINF_OK) {
+    if (res2 !== TINF_OK) {
       throw new Error("Data error");
     }
   } while (!bfinal);
@@ -819,21 +819,21 @@ Path.prototype.toPathData = function(decimalPlaces) {
   return d;
 };
 Path.prototype.toSVG = function(decimalPlaces) {
-  var svg = '<path d="';
-  svg += this.toPathData(decimalPlaces);
-  svg += '"';
+  var svg2 = '<path d="';
+  svg2 += this.toPathData(decimalPlaces);
+  svg2 += '"';
   if (this.fill && this.fill !== "black") {
     if (this.fill === null) {
-      svg += ' fill="none"';
+      svg2 += ' fill="none"';
     } else {
-      svg += ' fill="' + this.fill + '"';
+      svg2 += ' fill="' + this.fill + '"';
     }
   }
   if (this.stroke) {
-    svg += ' stroke="' + this.stroke + '" stroke-width="' + this.strokeWidth + '"';
+    svg2 += ' stroke="' + this.stroke + '" stroke-width="' + this.strokeWidth + '"';
   }
-  svg += "/>";
-  return svg;
+  svg2 += "/>";
+  return svg2;
 };
 Path.prototype.toDOMElement = function(decimalPlaces) {
   var temporaryPath = this.toPathData(decimalPlaces);
@@ -970,8 +970,8 @@ encode.REAL = function(v) {
   var value = v.toString();
   var m = /\.(\d*?)(?:9{5,20}|0{5,20})\d{0,2}(?:e(.+)|$)/.exec(value);
   if (m) {
-    var epsilon = parseFloat("1e" + ((m[2] ? +m[2] : 0) + m[1].length));
-    value = (Math.round(v * epsilon) / epsilon).toString();
+    var epsilon2 = parseFloat("1e" + ((m[2] ? +m[2] : 0) + m[1].length));
+    value = (Math.round(v * epsilon2) / epsilon2).toString();
   }
   var nibbles = "";
   for (var i = 0, ii = value.length; i < ii; i += 1) {
@@ -12461,7 +12461,7 @@ function bezier(controlPoints, t) {
 }
 function sampleBezier(controlPoints) {
   const dist = controlPoints[0].sub(controlPoints[controlPoints.length - 1]).norm();
-  const n = Math.max(Math.floor(dist / 10), 1);
+  const n = 1;
   const path = new CyclicList();
   for (let t = 0; t < 1; t += 1 / n) {
     path.push(bezier([...controlPoints], t));
@@ -12506,6 +12506,7 @@ var Edge = class {
 };
 
 // src/Triangulation.ts
+var epsilon = 1e-9;
 var Mesh = class {
   constructor(vertices, triangles, paths) {
     this.vertices = vertices;
@@ -12526,7 +12527,7 @@ function isInside(a, b, c, p) {
   const v = (d11 * d20 - d01 * d21) / denom;
   const w = (d00 * d21 - d01 * d20) / denom;
   const u = 1 - v - w;
-  return v >= -1e-9 && w >= -1e-9 && u >= -1e-9;
+  return v >= -epsilon && w >= -epsilon && u >= -epsilon;
 }
 function isClockwise(a, b, c) {
   return b.sub(a).cross(c.sub(a)) > 0;
@@ -12661,6 +12662,8 @@ function triangulate(paths) {
   const triangles = [];
   const cycles = [];
   for (const path of paths) {
+    if (path.size < 3)
+      continue;
     const cycle = new CyclicList();
     for (const p of path) {
       cycle.push(vertices.length);
@@ -12690,14 +12693,14 @@ var Polygon = class {
   paths;
   constructor(paths) {
     this.paths = paths.map(function dedupe(path) {
-      const res = new CyclicList();
+      const res2 = new CyclicList();
       let prev = path.get(-1);
       for (const p of path) {
         if (!p.equals(prev))
-          res.push(p);
+          res2.push(p);
         prev = p;
       }
-      return res;
+      return res2;
     });
   }
   get mesh() {
@@ -12780,6 +12783,425 @@ var Polygon = class {
   }
 };
 
+// src/Path.ts
+var { cos: cos2, sin: sin2, acos, PI, sqrt: sqrt2 } = Math;
+function toPolygon(d) {
+  const path = parseSvgPath(d);
+  let start = null;
+  let prev = null;
+  let vertices = new CyclicList();
+  for (const cmd of path) {
+    switch (cmd.type) {
+      case "MOVE_TO": {
+        start = prev = new Vector(cmd.x, cmd.y);
+        break;
+      }
+      case "LINE_TO": {
+        const p = new Vector(cmd.x, cmd.y);
+        vertices.push(prev);
+        prev = p;
+        break;
+      }
+      case "QUADRATIC_BEZIER": {
+        vertices.push(
+          ...sampleBezier([
+            prev,
+            new Vector(cmd.cx, cmd.cy),
+            new Vector(cmd.x, cmd.y)
+          ])
+        );
+        prev = new Vector(cmd.x, cmd.y);
+        break;
+      }
+      case "CUBIC_BEZIER": {
+        vertices.push(
+          ...sampleBezier([
+            prev,
+            new Vector(cmd.cx1, cmd.cy1),
+            new Vector(cmd.cx2, cmd.cy2),
+            new Vector(cmd.x, cmd.y)
+          ])
+        );
+        prev = new Vector(cmd.x, cmd.y);
+        break;
+      }
+      case "ELLIPSE": {
+      }
+      case "CLOSE_PATH": {
+        vertices.push(start);
+        prev = null;
+        break;
+      }
+    }
+  }
+  const polygon = new Polygon([vertices]);
+  if (polygon.paths[0].size && !isPathClockwise2(polygon.paths[0])) {
+    polygon.paths[0].items.reverse();
+  }
+  polygon.paths[0].items = polygon.paths[0].items.map(
+    (p) => p.translate(500, 200).scale(1.5)
+  );
+  return polygon;
+}
+function isClockwise2(a, b, c) {
+  return b.sub(a).cross(c.sub(a)) > 0;
+}
+function isPathClockwise2(cycle) {
+  let j = 0;
+  for (let i = 0; i < cycle.size; ++i) {
+    const cur = cycle.get(i);
+    const best = cycle.get(j);
+    if (cur.x < best.x || cur.x == best.x && cur.y < best.y) {
+      j = i;
+    }
+  }
+  return isClockwise2(cycle.get(j - 1), cycle.get(j), cycle.get(j + 1));
+}
+function parseSvgPath(d) {
+  let i = 0;
+  let cx = 0, cy = 0, x = 0, y = 0;
+  const res2 = Array();
+  space();
+  while (i < d.length) {
+    let node = parseCommands();
+    if (!node.length)
+      throw [res2, d.slice(i), i];
+    res2.push(...node);
+    space();
+  }
+  function command() {
+    let res3 = d[i++];
+    separator();
+    return res3;
+  }
+  function parseCommands() {
+    try {
+      switch (command()) {
+        case "M":
+          return moveTo();
+        case "m":
+          return moveToDelta();
+        case "L":
+          return lineTo();
+        case "l":
+          return lineToDelta();
+        case "H":
+          return hLineTo();
+        case "h":
+          return hLineToDelta();
+        case "V":
+          return vLineTo();
+        case "v":
+          return vLineToDelta();
+        case "C":
+          return cubicBezier();
+        case "c":
+          return cubicBezierDelta();
+        case "S":
+          return smoothCubicBezier();
+        case "s":
+          return smoothCubicBezierDelta();
+        case "Q":
+          return quadraticBezier();
+        case "q":
+          return quadraticBezierDelta();
+        case "T":
+          return smoothQuadraticBezier();
+        case "t":
+          return smoothQuadraticBezierDelta();
+        case "A":
+          return ellipse();
+        case "a":
+          return ellipseDelta();
+        case "Z":
+        case "z":
+          return closePath();
+      }
+    } catch (e) {
+      console.log(e);
+    }
+    return [];
+  }
+  function space() {
+    if (i >= d.length)
+      return false;
+    while (i < d.length && /\s/.test(d[i]))
+      ++i;
+    return true;
+  }
+  function separator() {
+    space();
+    if (i < d.length - 1 && /[\s,]/.test(d[i]) && /[^\s,]/.test(d[i + 1])) {
+      ++i;
+    }
+    space();
+    return true;
+  }
+  function flag() {
+    if (d[i] > "1" || d[i] < "0")
+      throw {
+        error: "failed to parse flag",
+        location: d.slice(i),
+        res: res2
+      };
+    return d[i++] == "1";
+  }
+  function number() {
+    const reg = /[+-]?((0|[1-9]\d*)?\.\d*[1-9]|(0|[1-9]\d*))/y;
+    reg.lastIndex = i;
+    const match = reg.exec(d);
+    if (!match)
+      throw {
+        error: "failed to parse number",
+        location: d.slice(i),
+        res: res2
+      };
+    i += match[0].length;
+    separator();
+    return Number(match[0]);
+  }
+  function moveTo() {
+    const res3 = [];
+    do {
+      x = number();
+      y = number();
+      res3.push({ type: "MOVE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function moveToDelta() {
+    const res3 = [];
+    do {
+      x += number();
+      y += number();
+      res3.push({ type: "MOVE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function lineTo() {
+    const res3 = [];
+    do {
+      x = number();
+      y = number();
+      res3.push({ type: "LINE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function lineToDelta() {
+    const res3 = [];
+    do {
+      x += number();
+      y += number();
+      res3.push({ type: "LINE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function hLineTo() {
+    const res3 = [];
+    do {
+      x = number();
+      res3.push({ type: "LINE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function hLineToDelta() {
+    const res3 = [];
+    do {
+      x += number();
+      res3.push({ type: "LINE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function vLineTo() {
+    const res3 = [];
+    do {
+      y = number();
+      res3.push({ type: "LINE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function vLineToDelta() {
+    const res3 = [];
+    do {
+      y += number();
+      res3.push({ type: "LINE_TO", x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function cubicBezier() {
+    const res3 = [];
+    do {
+      let cx1 = number();
+      let cy1 = number();
+      let cx2 = cx = number();
+      let cy2 = cy = number();
+      x = number();
+      y = number();
+      res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function cubicBezierDelta() {
+    const res3 = [];
+    do {
+      let cx1 = x + number();
+      let cy1 = y + number();
+      let cx2 = cx = x + number();
+      let cy2 = cy = y + number();
+      x += number();
+      y += number();
+      res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function smoothCubicBezier() {
+    const res3 = [];
+    do {
+      let cx1 = 2 * x - cx;
+      let cy1 = 2 * y - cy;
+      let cx2 = cx = number();
+      let cy2 = cy = number();
+      x = number();
+      y = number();
+      res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function smoothCubicBezierDelta() {
+    const res3 = [];
+    do {
+      let cx1 = 2 * x - cx;
+      let cy1 = 2 * y - cy;
+      let cx2 = cx = x + number();
+      let cy2 = cy = y + number();
+      x += number();
+      y += number();
+      res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function quadraticBezier() {
+    const res3 = [];
+    do {
+      cx = number();
+      cy = number();
+      x = number();
+      y = number();
+      res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function quadraticBezierDelta() {
+    const res3 = [];
+    do {
+      cx = x + number();
+      cy = y + number();
+      x += number();
+      y += number();
+      res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function smoothQuadraticBezier() {
+    const res3 = [];
+    do {
+      cx = 2 * x - cx;
+      cy = 2 * y - cy;
+      x = number();
+      y = number();
+      res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function smoothQuadraticBezierDelta() {
+    const res3 = [];
+    do {
+      cx = 2 * x - cx;
+      cy = 2 * y - cy;
+      x += number();
+      y += number();
+      res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function angle(ux, uy, vx, vy) {
+    let sign = ux * vy - uy * vx > 0 ? 1 : -1;
+    return acos(
+      (ux * vx + uy * vy) / (sqrt2(ux ** 2 + uy ** 2) * sqrt2(vx ** 2 + vy ** 2))
+    ) * sign;
+  }
+  function makeArc(x1, y1, x2, y2, rx, ry, theta, largeArc, sweep) {
+    let x1$ = cos2(theta) * (x1 - x2) / 2 + sin2(theta) * (y1 - y2) / 2;
+    let y1$ = -sin2(theta) * (x1 - x2) / 2 + cos2(theta) * (y1 - y2) / 2;
+    let factor = sqrt2(
+      (rx ** 2 * ry ** 2 - rx ** 2 * y1$ ** 2 - ry ** 2 * x1$ ** 2) / (rx ** 2 * y1$ ** 2 + ry ** 2 * x1$ ** 2)
+    );
+    if (largeArc == sweep)
+      factor = -factor;
+    let cx$ = factor * rx * y1$ / ry;
+    let cy$ = -factor * ry * x1$ / rx;
+    let cx2 = cos2(theta) * cx$ - sin2(theta) * cy$ + (x1 + x2) / 2;
+    let cy2 = sin2(theta) * cx$ + cos2(theta) * cy$ + (y1 + y2) / 2;
+    let startAngle = angle(1, 0, x1$ - cx$, y1$ - cy$);
+    let delta = angle(x1$ - cx$, y1$ - cy$, -x1$ - cx$, -y1$ - cy$);
+    if (sweep && delta < 0)
+      delta += 2 * PI;
+    else if (!sweep && delta > 0)
+      delta -= 2 * PI;
+    return {
+      type: "ELLIPSE",
+      cx: cx2,
+      cy: cy2,
+      rx,
+      ry,
+      rotation: theta,
+      startAngle,
+      endAngle: startAngle + delta,
+      counterclockwise: !sweep
+    };
+  }
+  function ellipse() {
+    const res3 = [];
+    do {
+      let x1 = x;
+      let y1 = y;
+      let rx = number();
+      let ry = number();
+      let angle2 = number();
+      let largeArc = flag();
+      let sweep = flag();
+      x = number();
+      y = number();
+      res3.push(
+        makeArc(x1, y1, x, y, rx, ry, angle2 * PI / 180, largeArc, sweep)
+      );
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function ellipseDelta() {
+    const res3 = [];
+    do {
+      let x1 = x;
+      let y1 = y;
+      let rx = number();
+      let ry = number();
+      let angle2 = number();
+      let largeArc = flag();
+      let sweep = flag();
+      x += number();
+      y += number();
+      res3.push(
+        makeArc(x1, y1, x, y, rx, ry, angle2 * PI / 180, largeArc, sweep)
+      );
+    } while (!/[a-zA-Z]/.test(d[i]));
+    return res3;
+  }
+  function closePath() {
+    return [{ type: "CLOSE_PATH" }];
+  }
+  return res2;
+}
+
 // demo/index.ts
 var FontBook = {
   NotoSans: parseBuffer(await (await fetch("./NotoSans.ttf")).arrayBuffer()),
@@ -12794,7 +13216,39 @@ var shape = sampleBezier([
   new Vector(150, 600)
 ]);
 shape.push(new Vector(100, 100));
-var texts = makeText("hello world!", 100, 500, 400, FontBook.NotoSans);
+var res = await fetch(
+  "https://upload.wikimedia.org/wikipedia/commons/f/fd/Ghostscript_Tiger.svg"
+);
+var svg = new DOMParser().parseFromString(await res.text(), "text/xml");
+function parseColor(s) {
+  if (s.length == 7) {
+    const r = parseInt(s.slice(1, 3), 16) / 255;
+    const g = parseInt(s.slice(3, 5), 16) / 255;
+    const b = parseInt(s.slice(5, 7), 16) / 255;
+    return [r, g, b, 1];
+  } else {
+    const r = parseInt(s.slice(1, 2), 16) / 15;
+    const g = parseInt(s.slice(2, 3), 16) / 15;
+    const b = parseInt(s.slice(3, 4), 16) / 15;
+    return [r, g, b, 1];
+  }
+}
+svg.children[0].children[0].querySelectorAll("g").forEach((g) => {
+  const polygon = toPolygon(g.children[0].getAttribute("d"));
+  const draw2 = renderer.prepare(polygon);
+  function render() {
+    const s = g.getAttribute("fill") ?? "#000000";
+    const color = parseColor(s);
+    draw2(
+      color,
+      void 0,
+      void 0
+      // true
+    );
+  }
+  render();
+});
+var texts = makeText("hello world!", 100, 1200, 400, FontBook.NotoSerif);
 for (const text of texts) {
   let render = function() {
     draw2(

@@ -1,6 +1,7 @@
 import { CyclicList } from "./CyclicList";
 import { Vector } from "./Vector";
 
+const epsilon = 1e-9;
 export class Mesh {
   constructor(
     public vertices: Array<Vector>,
@@ -22,7 +23,7 @@ function isInside(a: Vector, b: Vector, c: Vector, p: Vector) {
   const v = (d11 * d20 - d01 * d21) / denom;
   const w = (d00 * d21 - d01 * d20) / denom;
   const u = 1 - v - w;
-  return v >= -1e-9 && w >= -1e-9 && u >= -1e-9;
+  return v >= -epsilon && w >= -epsilon && u >= -epsilon;
 }
 
 function isClockwise(a: Vector, b: Vector, c: Vector): boolean {
@@ -205,6 +206,7 @@ export function triangulate(paths: Array<CyclicList<Vector>>) {
   const cycles: Array<CyclicList<number>> = [];
 
   for (const path of paths) {
+    if (path.size < 3) continue; // TODO:...
     const cycle = new CyclicList<number>();
     for (const p of path) {
       cycle.push(vertices.length);
