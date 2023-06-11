@@ -55,6 +55,18 @@ export class Renderer {
     `
     );
 
+    canvas.addEventListener("click", (e) => {
+      const type = e.type;
+      const x = e.offsetX * devicePixelRatio;
+      const y = e.offsetY * devicePixelRatio;
+      for (const area of this.interactive) {
+        if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
+          area.eventHandler(type, x, y);
+          break;
+        }
+      }
+    });
+
     canvas.addEventListener("pointermove", (e) => {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;

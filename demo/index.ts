@@ -1,16 +1,6 @@
 import { Renderer } from "polyrender/Renderer";
-import { Vector } from "polyrender/Vector";
-import { Font, parse } from "opentype.js";
-import { sampleBezier } from "../src/Bezier.js";
-import { Polygon } from "polyrender/Polygon.js";
-import { CyclicList } from "polyrender/CyclicList.js";
 import { toPolygon } from "polyrender/Path.js";
-
-export const FontBook = {
-  NotoSans: parse(await (await fetch("./NotoSans.ttf")).arrayBuffer()),
-  NotoSerif: parse(await (await fetch("./NotoSerif.ttf")).arrayBuffer()),
-  Zapfino: parse(await (await fetch("./Zapfino.ttf")).arrayBuffer()),
-};
+import { FontBook, makeText } from "polyrender/Text";
 
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -68,6 +58,8 @@ for (const text of texts) {
           active = true;
         } else if (type == "pointerleave") {
           active = false;
+        } else if (type == "click") {
+          location.href = "./cpu";
         }
         render();
       },
@@ -76,72 +68,4 @@ for (const text of texts) {
   }
 
   render();
-}
-
-function makeText(
-  text: string,
-  dx: number,
-  dy: number,
-  size: number,
-  font: Font,
-  samplingRate: number
-): Array<Polygon> {
-  const polygons: Array<Polygon> = [];
-
-  for (const path of font.getPaths(text, dx, dy, size)) {
-    let start: Vector | null = null;
-    let prev: Vector | null = null;
-    let pathSet: Array<CyclicList<Vector>> = [];
-    let current = new CyclicList<Vector>();
-
-    for (const cmd of path.commands) {
-      switch (cmd.type) {
-        case "M": {
-          start = prev = new Vector(cmd.x, cmd.y);
-          break;
-        }
-        case "L": {
-          const p = new Vector(cmd.x, cmd.y);
-          current.push(prev!);
-          prev = p;
-          break;
-        }
-        case "Q": {
-          current.push(
-            ...sampleBezier(
-              [prev!, new Vector(cmd.x1, cmd.y1), new Vector(cmd.x, cmd.y)],
-              samplingRate
-            )
-          );
-          prev = new Vector(cmd.x, cmd.y);
-          break;
-        }
-        case "C": {
-          current.push(
-            ...sampleBezier(
-              [
-                prev!,
-                new Vector(cmd.x1, cmd.y1),
-                new Vector(cmd.x2, cmd.y2),
-                new Vector(cmd.x, cmd.y),
-              ],
-              samplingRate
-            )
-          );
-          prev = new Vector(cmd.x, cmd.y);
-          break;
-        }
-        case "Z": {
-          current.push(start!);
-          pathSet.push(current);
-          current = new CyclicList<Vector>();
-          // prev = start;
-          prev = null;
-          break;
-        }
-      }
-    }
-    polygons.push(new Polygon(pathSet));
-  }
-  return polygons;
 }
