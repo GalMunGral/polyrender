@@ -98,7 +98,7 @@ var Renderer = class {
           0,
           1.0
         );
-        gl_PointSize = 2.0;
+        gl_PointSize = 5.0;
       }
     `,
       `#version 300 es
@@ -193,6 +193,7 @@ var Renderer = class {
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(
@@ -12446,7 +12447,7 @@ var CyclicList = class {
   }
 };
 
-// demo/bezier.ts
+// src/Bezier.ts
 function bezier(controlPoints, t) {
   const points = [...controlPoints];
   while (points.length > 1) {
@@ -12461,7 +12462,7 @@ function bezier(controlPoints, t) {
 }
 function sampleBezier(controlPoints) {
   const dist = controlPoints[0].sub(controlPoints[controlPoints.length - 1]).norm();
-  const n = 1;
+  const n = Math.max(controlPoints.length * Math.floor(dist / 30), 1);
   const path = new CyclicList();
   for (let t = 0; t < 1; t += 1 / n) {
     path.push(bezier([...controlPoints], t));
@@ -12860,6 +12861,8 @@ function isPathClockwise2(cycle) {
 function parseSvgPath(d) {
   let i = 0;
   let cx = 0, cy = 0, x = 0, y = 0;
+  let isPrevCubic = false;
+  let isPrevQuadratic = false;
   const res2 = Array();
   space();
   while (i < d.length) {
@@ -12967,6 +12970,8 @@ function parseSvgPath(d) {
       y = number();
       res3.push({ type: "MOVE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function moveToDelta() {
@@ -12976,6 +12981,8 @@ function parseSvgPath(d) {
       y += number();
       res3.push({ type: "MOVE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function lineTo() {
@@ -12985,6 +12992,8 @@ function parseSvgPath(d) {
       y = number();
       res3.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function lineToDelta() {
@@ -12994,6 +13003,8 @@ function parseSvgPath(d) {
       y += number();
       res3.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function hLineTo() {
@@ -13002,6 +13013,8 @@ function parseSvgPath(d) {
       x = number();
       res3.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function hLineToDelta() {
@@ -13010,6 +13023,8 @@ function parseSvgPath(d) {
       x += number();
       res3.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function vLineTo() {
@@ -13018,6 +13033,8 @@ function parseSvgPath(d) {
       y = number();
       res3.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function vLineToDelta() {
@@ -13026,6 +13043,8 @@ function parseSvgPath(d) {
       y += number();
       res3.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function cubicBezier() {
@@ -13039,6 +13058,8 @@ function parseSvgPath(d) {
       y = number();
       res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res3;
   }
   function cubicBezierDelta() {
@@ -13052,32 +13073,38 @@ function parseSvgPath(d) {
       y += number();
       res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res3;
   }
   function smoothCubicBezier() {
     const res3 = [];
     do {
-      let cx1 = 2 * x - cx;
-      let cy1 = 2 * y - cy;
+      let cx1 = isPrevCubic ? 2 * x - cx : x;
+      let cy1 = isPrevCubic ? 2 * y - cy : y;
       let cx2 = cx = number();
       let cy2 = cy = number();
       x = number();
       y = number();
       res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res3;
   }
   function smoothCubicBezierDelta() {
     const res3 = [];
     do {
-      let cx1 = 2 * x - cx;
-      let cy1 = 2 * y - cy;
+      let cx1 = isPrevCubic ? 2 * x - cx : x;
+      let cy1 = isPrevCubic ? 2 * y - cy : y;
       let cx2 = cx = x + number();
       let cy2 = cy = y + number();
       x += number();
       y += number();
       res3.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res3;
   }
   function quadraticBezier() {
@@ -13089,6 +13116,8 @@ function parseSvgPath(d) {
       y = number();
       res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res3;
   }
   function quadraticBezierDelta() {
@@ -13100,28 +13129,34 @@ function parseSvgPath(d) {
       y += number();
       res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res3;
   }
   function smoothQuadraticBezier() {
     const res3 = [];
     do {
-      cx = 2 * x - cx;
-      cy = 2 * y - cy;
+      cx = isPrevQuadratic ? 2 * x - cx : x;
+      cy = isPrevQuadratic ? 2 * y - cy : y;
       x = number();
       y = number();
       res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res3;
   }
   function smoothQuadraticBezierDelta() {
     const res3 = [];
     do {
-      cx = 2 * x - cx;
-      cy = 2 * y - cy;
+      cx = isPrevQuadratic ? 2 * x - cx : x;
+      cy = isPrevQuadratic ? 2 * y - cy : y;
       x += number();
       y += number();
       res3.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res3;
   }
   function angle(ux, uy, vx, vy) {
@@ -13176,6 +13211,8 @@ function parseSvgPath(d) {
         makeArc(x1, y1, x, y, rx, ry, angle2 * PI / 180, largeArc, sweep)
       );
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function ellipseDelta() {
@@ -13194,9 +13231,13 @@ function parseSvgPath(d) {
         makeArc(x1, y1, x, y, rx, ry, angle2 * PI / 180, largeArc, sweep)
       );
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res3;
   }
   function closePath() {
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return [{ type: "CLOSE_PATH" }];
   }
   return res2;
@@ -13210,12 +13251,6 @@ var FontBook = {
 };
 var canvas = document.querySelector("#test");
 var renderer = new Renderer(canvas);
-var shape = sampleBezier([
-  new Vector(100, 100),
-  new Vector(200, 200),
-  new Vector(150, 600)
-]);
-shape.push(new Vector(100, 100));
 var res = await fetch(
   "https://upload.wikimedia.org/wikipedia/commons/f/fd/Ghostscript_Tiger.svg"
 );
@@ -13239,12 +13274,7 @@ svg.children[0].children[0].querySelectorAll("g").forEach((g) => {
   function render() {
     const s = g.getAttribute("fill") ?? "#000000";
     const color = parseColor(s);
-    draw2(
-      color,
-      void 0,
-      void 0
-      // true
-    );
+    draw2(color);
   }
   render();
 });

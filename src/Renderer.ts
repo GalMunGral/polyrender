@@ -39,7 +39,7 @@ export class Renderer {
           0,
           1.0
         );
-        gl_PointSize = 2.0;
+        gl_PointSize = 5.0;
       }
     `,
       `#version 300 es
@@ -160,6 +160,7 @@ export class Renderer {
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(

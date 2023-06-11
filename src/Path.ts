@@ -1,4 +1,4 @@
-import { sampleBezier } from "../demo/bezier";
+import { sampleBezier } from "./Bezier";
 import { CyclicList } from "./CyclicList";
 import { Polygon } from "./Polygon";
 import { Vector } from "./Vector";
@@ -160,6 +160,10 @@ function parseSvgPath(d: string): Array<Command> {
     cy: number = 0,
     x: number = 0,
     y: number = 0;
+
+  let isPrevCubic = false;
+  let isPrevQuadratic = false;
+
   const res = Array<Command>();
 
   space();
@@ -273,6 +277,8 @@ function parseSvgPath(d: string): Array<Command> {
       y = number();
       res.push({ type: "MOVE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -283,6 +289,8 @@ function parseSvgPath(d: string): Array<Command> {
       y += number();
       res.push({ type: "MOVE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -293,6 +301,8 @@ function parseSvgPath(d: string): Array<Command> {
       y = number();
       res.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -303,6 +313,8 @@ function parseSvgPath(d: string): Array<Command> {
       y += number();
       res.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -312,6 +324,8 @@ function parseSvgPath(d: string): Array<Command> {
       x = number();
       res.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -321,6 +335,8 @@ function parseSvgPath(d: string): Array<Command> {
       x += number();
       res.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -330,6 +346,8 @@ function parseSvgPath(d: string): Array<Command> {
       y = number();
       res.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -339,6 +357,8 @@ function parseSvgPath(d: string): Array<Command> {
       y += number();
       res.push({ type: "LINE_TO", x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -353,6 +373,8 @@ function parseSvgPath(d: string): Array<Command> {
       y = number();
       res.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -367,34 +389,40 @@ function parseSvgPath(d: string): Array<Command> {
       y += number();
       res.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res;
   }
 
   function smoothCubicBezier(): Array<Command> {
     const res: Array<Command> = [];
     do {
-      let cx1 = 2 * x - cx;
-      let cy1 = 2 * y - cy;
+      let cx1 = isPrevCubic ? 2 * x - cx : x;
+      let cy1 = isPrevCubic ? 2 * y - cy : y;
       let cx2 = (cx = number());
       let cy2 = (cy = number());
       x = number();
       y = number();
       res.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res;
   }
 
   function smoothCubicBezierDelta(): Array<Command> {
     const res: Array<Command> = [];
     do {
-      let cx1 = 2 * x - cx;
-      let cy1 = 2 * y - cy;
+      let cx1 = isPrevCubic ? 2 * x - cx : x;
+      let cy1 = isPrevCubic ? 2 * y - cy : y;
       let cx2 = (cx = x + number());
       let cy2 = (cy = y + number());
       x += number();
       y += number();
       res.push({ type: "CUBIC_BEZIER", cx1, cy1, cx2, cy2, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = true;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -407,6 +435,8 @@ function parseSvgPath(d: string): Array<Command> {
       y = number();
       res.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res;
   }
 
@@ -419,30 +449,36 @@ function parseSvgPath(d: string): Array<Command> {
       y += number();
       res.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res;
   }
 
   function smoothQuadraticBezier(): Array<Command> {
     const res: Array<Command> = [];
     do {
-      cx = 2 * x - cx;
-      cy = 2 * y - cy;
+      cx = isPrevQuadratic ? 2 * x - cx : x;
+      cy = isPrevQuadratic ? 2 * y - cy : y;
       x = number();
       y = number();
       res.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res;
   }
 
   function smoothQuadraticBezierDelta(): Array<Command> {
     const res: Array<Command> = [];
     do {
-      cx = 2 * x - cx;
-      cy = 2 * y - cy;
+      cx = isPrevQuadratic ? 2 * x - cx : x;
+      cy = isPrevQuadratic ? 2 * y - cy : y;
       x += number();
       y += number();
       res.push({ type: "QUADRATIC_BEZIER", cx, cy, x, y });
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = true;
     return res;
   }
 
@@ -515,6 +551,8 @@ function parseSvgPath(d: string): Array<Command> {
         makeArc(x1, y1, x, y, rx, ry, (angle * PI) / 180, largeArc, sweep)
       );
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
@@ -534,10 +572,14 @@ function parseSvgPath(d: string): Array<Command> {
         makeArc(x1, y1, x, y, rx, ry, (angle * PI) / 180, largeArc, sweep)
       );
     } while (!/[a-zA-Z]/.test(d[i]));
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return res;
   }
 
   function closePath(): Array<Command> {
+    isPrevCubic = false;
+    isPrevQuadratic = false;
     return [{ type: "CLOSE_PATH" }];
   }
 

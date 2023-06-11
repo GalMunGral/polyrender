@@ -21,8 +21,7 @@ export function sampleBezier(controlPoints: Array<Vector>): CyclicList<Vector> {
     .sub(controlPoints[controlPoints.length - 1])
     .norm();
 
-  // const n = Math.max(Math.floor(dist / 10), 1);
-  const n = 1;
+  const n = Math.max(controlPoints.length * Math.floor(dist / 30), 1);
 
   const path = new CyclicList<Vector>();
   for (let t = 0; t < 1; t += 1 / n) {
