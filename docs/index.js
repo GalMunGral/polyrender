@@ -12462,7 +12462,10 @@ function bezier(controlPoints, t) {
 }
 function sampleBezier(controlPoints) {
   const dist = controlPoints[0].sub(controlPoints[controlPoints.length - 1]).norm();
-  const n = Math.max(controlPoints.length * Math.floor(dist / 30), 1);
+  const n = Math.min(
+    Math.max(Math.round(controlPoints.length * (20 / dist)), 1),
+    20
+  );
   const path = new CyclicList();
   for (let t = 0; t < 1; t += 1 / n) {
     path.push(bezier([...controlPoints], t));

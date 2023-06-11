@@ -15,13 +15,16 @@ export function bezier(controlPoints: Array<Vector>, t: number) {
   return points[0];
 }
 
-// TODO: fix oversampling
 export function sampleBezier(controlPoints: Array<Vector>): CyclicList<Vector> {
   const dist = controlPoints[0]
     .sub(controlPoints[controlPoints.length - 1])
     .norm();
 
-  const n = Math.max(controlPoints.length * Math.floor(dist / 30), 1);
+  // TODO: adjust sampling rate based on curvature?
+  const n = Math.min(
+    Math.max(Math.round(controlPoints.length * (20 / dist)), 1),
+    20
+  );
 
   const path = new CyclicList<Vector>();
   for (let t = 0; t < 1; t += 1 / n) {
