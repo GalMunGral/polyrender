@@ -1,20 +1,20 @@
 import { Polygon } from "./Polygon";
 import { Vector } from "./Vector";
 
-type Transform = {
+export type Transform = {
   translateX?: number;
   translateY?: number;
   rotation?: number;
   scale?: number;
 };
-type EventHander = (type: string, x: number, y: number) => void;
-type Interactive = { polygon: Polygon; eventHandler?: EventHander };
+export type EventHander = (type: string, x: number, y: number) => void;
+export type Interactive = { polygon: Polygon; eventHandler?: EventHander };
 
 export class Renderer {
   private gl: WebGL2RenderingContext;
   private basicProgram: WebGLProgram;
   private active: Interactive | null = null;
-  private interactive: Array<Interactive> = [];
+  public interactive: Array<Interactive> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     document.body.style.margin = "0px";
@@ -22,7 +22,7 @@ export class Renderer {
     canvas.height = window.innerHeight * devicePixelRatio;
     canvas.style.width = window.innerWidth + "px";
     canvas.style.height = window.innerHeight + "px";
-    this.gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true })!;
+    this.gl = canvas.getContext("webgl2")!;
     this.basicProgram = createWebGLProgram(
       this.gl,
       `#version 300 es
@@ -39,7 +39,7 @@ export class Renderer {
           0,
           1.0
         );
-        gl_PointSize = 4.0;
+        gl_PointSize = 2.0;
       }
     `,
       `#version 300 es
@@ -164,6 +164,7 @@ export class Renderer {
       debug = false
     ) => {
       gl.useProgram(program);
+      gl.enable(gl.BLEND);
       gl.bindVertexArray(vao);
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
@@ -171,8 +172,8 @@ export class Renderer {
       gl.uniform4fv(colorUniformLoc, new Float32Array(color));
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-        // gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
-        gl.drawArrays(gl.POINTS, 0, vertices.length++);
+        gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(
