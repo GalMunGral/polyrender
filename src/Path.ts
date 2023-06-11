@@ -68,7 +68,7 @@ export type PathConfig = {
   paths: Array<SvgPath>;
 };
 
-export function toPolygon(d: string) {
+export function toPolygon(d: string, samplingRate?: number) {
   const path = parseSvgPath(d);
 
   let start: Vector | null = null;
@@ -78,38 +78,43 @@ export function toPolygon(d: string) {
   for (const cmd of path) {
     switch (cmd.type) {
       case "MOVE_TO": {
-        start = prev = new Vector(cmd.x, cmd.y);
+        const p = new Vector(cmd.x, cmd.y);
+        vertices.push(p);
+        start = prev = p;
         break;
       }
       case "LINE_TO": {
         const p = new Vector(cmd.x, cmd.y);
-        vertices.push(prev!);
+        vertices.push(p);
         prev = p;
         break;
       }
       case "QUADRATIC_BEZIER": {
         vertices.push(
-          ...sampleBezier([
-            prev!,
-            new Vector(cmd.cx, cmd.cy),
-            new Vector(cmd.x, cmd.y),
-          ])
+          ...sampleBezier(
+            [prev!, new Vector(cmd.cx, cmd.cy), new Vector(cmd.x, cmd.y)],
+            samplingRate
+          )
         );
         prev = new Vector(cmd.x, cmd.y);
         break;
       }
       case "CUBIC_BEZIER": {
         vertices.push(
-          ...sampleBezier([
-            prev!,
-            new Vector(cmd.cx1, cmd.cy1),
-            new Vector(cmd.cx2, cmd.cy2),
-            new Vector(cmd.x, cmd.y),
-          ])
+          ...sampleBezier(
+            [
+              prev!,
+              new Vector(cmd.cx1, cmd.cy1),
+              new Vector(cmd.cx2, cmd.cy2),
+              new Vector(cmd.x, cmd.y),
+            ],
+            samplingRate
+          )
         );
         prev = new Vector(cmd.x, cmd.y);
         break;
       }
+      // TODO
       case "ELLIPSE": {
         // cmd.cx,
         // cmd.cy,
@@ -118,6 +123,7 @@ export function toPolygon(d: string) {
         // cmd.rotation,
         // cmd.startAngle,
         // cmd.endAngle,
+        break;
       }
       case "CLOSE_PATH": {
         vertices.push(start!);
@@ -132,9 +138,6 @@ export function toPolygon(d: string) {
   if (polygon.paths[0].size && !isPathClockwise(polygon.paths[0])) {
     polygon.paths[0].items.reverse();
   }
-  polygon.paths[0].items = polygon.paths[0].items.map((p) =>
-    p.translate(500, 200).scale(1.5)
-  );
   return polygon;
 }
 
@@ -142,7 +145,7 @@ function isClockwise(a: Vector, b: Vector, c: Vector): boolean {
   return b.sub(a).cross(c.sub(a)) > 0;
 }
 
-function isPathClockwise(cycle: CyclicList<Vector>): boolean {
+export function isPathClockwise(cycle: CyclicList<Vector>): boolean {
   let j = 0;
   for (let i = 0; i < cycle.size; ++i) {
     const cur = cycle.get(i);
@@ -272,10 +275,16 @@ function parseSvgPath(d: string): Array<Command> {
 
   function moveTo(): Array<Command> {
     const res: Array<Command> = [];
+    let first = true;
     do {
       x = number();
       y = number();
-      res.push({ type: "MOVE_TO", x, y });
+      if (first) {
+        first = false;
+        res.push({ type: "MOVE_TO", x, y });
+      } else {
+        res.push({ type: "LINE_TO", x, y });
+      }
     } while (!/[a-zA-Z]/.test(d[i]));
     isPrevCubic = false;
     isPrevQuadratic = false;
@@ -284,10 +293,16 @@ function parseSvgPath(d: string): Array<Command> {
 
   function moveToDelta(): Array<Command> {
     const res: Array<Command> = [];
+    let first = true;
     do {
       x += number();
       y += number();
-      res.push({ type: "MOVE_TO", x, y });
+      if (first) {
+        first = false;
+        res.push({ type: "MOVE_TO", x, y });
+      } else {
+        res.push({ type: "LINE_TO", x, y });
+      }
     } while (!/[a-zA-Z]/.test(d[i]));
     isPrevCubic = false;
     isPrevQuadratic = false;

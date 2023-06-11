@@ -29,7 +29,8 @@ function parseColor(s: string): [number, number, number, number] {
 }
 
 svg.children[0].children[0].querySelectorAll("g").forEach((el) => {
-  const polygon = toPolygon(el.children[0].getAttribute("d")!);
+  const d = el.children[0].getAttribute("d")!;
+  const polygon = toPolygon(d, 64).translate(300, 200).scale(3);
   const s = el.getAttribute("fill") ?? "#000000";
   const [r, g, b, a] = parseColor(s).map((x) => x * 255);
   polygon.traverse((x, y) => {

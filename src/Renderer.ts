@@ -39,7 +39,7 @@ export class Renderer {
           0,
           1.0
         );
-        gl_PointSize = 5.0;
+        gl_PointSize = 4.0;
       }
     `,
       `#version 300 es
@@ -171,8 +171,8 @@ export class Renderer {
       gl.uniform4fv(colorUniformLoc, new Float32Array(color));
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-        gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
-        gl.drawArrays(gl.POINTS, 0, vertices.length);
+        // gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.POINTS, 0, vertices.length++);
       } else {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(

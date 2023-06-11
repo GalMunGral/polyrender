@@ -122,7 +122,10 @@ function bezier(controlPoints, t) {
 }
 function sampleBezier(controlPoints, samplingRate) {
   const dist = controlPoints[0].sub(controlPoints[controlPoints.length - 1]).norm();
-  const n = samplingRate ?? Math.min(Math.max(Math.round(controlPoints.length * (20 / dist)), 1), 20);
+  const n = samplingRate ?? Math.min(
+    Math.max(dist / 4, Math.round(controlPoints.length * (10 / dist)), 1),
+    30
+  );
   const path = new CyclicList();
   for (let t = 0; t < 1; t += 1 / n) {
     path.push(bezier([...controlPoints], t));
@@ -446,7 +449,7 @@ var Polygon = class {
 
 // src/Path.ts
 var { cos: cos2, sin: sin2, acos, PI, sqrt: sqrt2 } = Math;
-function toPolygon(d) {
+function toPolygon(d, samplingRate) {
   const path = parseSvgPath(d);
   let start = null;
   let prev = null;
@@ -454,39 +457,44 @@ function toPolygon(d) {
   for (const cmd of path) {
     switch (cmd.type) {
       case "MOVE_TO": {
-        start = prev = new Vector(cmd.x, cmd.y);
+        const p = new Vector(cmd.x, cmd.y);
+        vertices.push(p);
+        start = prev = p;
         break;
       }
       case "LINE_TO": {
         const p = new Vector(cmd.x, cmd.y);
-        vertices.push(prev);
+        vertices.push(p);
         prev = p;
         break;
       }
       case "QUADRATIC_BEZIER": {
         vertices.push(
-          ...sampleBezier([
-            prev,
-            new Vector(cmd.cx, cmd.cy),
-            new Vector(cmd.x, cmd.y)
-          ])
+          ...sampleBezier(
+            [prev, new Vector(cmd.cx, cmd.cy), new Vector(cmd.x, cmd.y)],
+            samplingRate
+          )
         );
         prev = new Vector(cmd.x, cmd.y);
         break;
       }
       case "CUBIC_BEZIER": {
         vertices.push(
-          ...sampleBezier([
-            prev,
-            new Vector(cmd.cx1, cmd.cy1),
-            new Vector(cmd.cx2, cmd.cy2),
-            new Vector(cmd.x, cmd.y)
-          ])
+          ...sampleBezier(
+            [
+              prev,
+              new Vector(cmd.cx1, cmd.cy1),
+              new Vector(cmd.cx2, cmd.cy2),
+              new Vector(cmd.x, cmd.y)
+            ],
+            samplingRate
+          )
         );
         prev = new Vector(cmd.x, cmd.y);
         break;
       }
       case "ELLIPSE": {
+        break;
       }
       case "CLOSE_PATH": {
         vertices.push(start);
@@ -499,9 +507,6 @@ function toPolygon(d) {
   if (polygon.paths[0].size && !isPathClockwise2(polygon.paths[0])) {
     polygon.paths[0].items.reverse();
   }
-  polygon.paths[0].items = polygon.paths[0].items.map(
-    (p) => p.translate(500, 200).scale(1.5)
-  );
   return polygon;
 }
 function isClockwise2(a, b, c) {
@@ -625,10 +630,16 @@ function parseSvgPath(d) {
   }
   function moveTo() {
     const res3 = [];
+    let first = true;
     do {
       x = number();
       y = number();
-      res3.push({ type: "MOVE_TO", x, y });
+      if (first) {
+        first = false;
+        res3.push({ type: "MOVE_TO", x, y });
+      } else {
+        res3.push({ type: "LINE_TO", x, y });
+      }
     } while (!/[a-zA-Z]/.test(d[i]));
     isPrevCubic = false;
     isPrevQuadratic = false;
@@ -636,10 +647,16 @@ function parseSvgPath(d) {
   }
   function moveToDelta() {
     const res3 = [];
+    let first = true;
     do {
       x += number();
       y += number();
-      res3.push({ type: "MOVE_TO", x, y });
+      if (first) {
+        first = false;
+        res3.push({ type: "MOVE_TO", x, y });
+      } else {
+        res3.push({ type: "LINE_TO", x, y });
+      }
     } while (!/[a-zA-Z]/.test(d[i]));
     isPrevCubic = false;
     isPrevQuadratic = false;
@@ -930,7 +947,8 @@ function parseColor(s) {
   }
 }
 svg.children[0].children[0].querySelectorAll("g").forEach((el) => {
-  const polygon = toPolygon(el.children[0].getAttribute("d"));
+  const d = el.children[0].getAttribute("d");
+  const polygon = toPolygon(d, 64).translate(300, 200).scale(3);
   const s = el.getAttribute("fill") ?? "#000000";
   const [r, g, b, a] = parseColor(s).map((x) => x * 255);
   polygon.traverse((x, y) => {

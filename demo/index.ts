@@ -25,12 +25,14 @@ function parseColor(s: string): [number, number, number, number] {
 }
 
 svg.children[0].children[0].querySelectorAll("g").forEach((g) => {
-  const polygon = toPolygon(g.children[0].getAttribute("d")!);
+  const d = g.children[0].getAttribute("d")!;
+  const polygon = toPolygon(d, 9).scale(1.5).translate(1000, 500);
+
   const draw = renderer.prepare(polygon);
   function render() {
     const s = g.getAttribute("fill") ?? "#000000";
     const color = parseColor(s);
-    draw(color);
+    draw(color, undefined, undefined);
   }
 
   render();

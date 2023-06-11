@@ -26,7 +26,10 @@ export function sampleBezier(
   // TODO: adjust sampling rate based on curvature?
   const n =
     samplingRate ??
-    Math.min(Math.max(Math.round(controlPoints.length * (20 / dist)), 1), 20);
+    Math.min(
+      Math.max(dist / 4, Math.round(controlPoints.length * (10 / dist)), 1),
+      30
+    );
 
   const path = new CyclicList<Vector>();
   for (let t = 0; t < 1; t += 1 / n) {

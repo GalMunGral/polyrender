@@ -98,7 +98,7 @@ var Renderer = class {
           0,
           1.0
         );
-        gl_PointSize = 5.0;
+        gl_PointSize = 4.0;
       }
     `,
       `#version 300 es
@@ -203,8 +203,7 @@ var Renderer = class {
       gl.uniform4fv(colorUniformLoc, new Float32Array(color));
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-        gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
-        gl.drawArrays(gl.POINTS, 0, vertices.length);
+        gl.drawArrays(gl.POINTS, 0, vertices.length++);
       } else {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(
@@ -310,7 +309,10 @@ function bezier(controlPoints, t) {
 }
 function sampleBezier(controlPoints, samplingRate) {
   const dist = controlPoints[0].sub(controlPoints[controlPoints.length - 1]).norm();
-  const n = samplingRate ?? Math.min(Math.max(Math.round(controlPoints.length * (20 / dist)), 1), 20);
+  const n = samplingRate ?? Math.min(
+    Math.max(dist / 4, Math.round(controlPoints.length * (10 / dist)), 1),
+    30
+  );
   const path = new CyclicList();
   for (let t = 0; t < 1; t += 1 / n) {
     path.push(bezier([...controlPoints], t));
@@ -634,7 +636,7 @@ var Polygon = class {
 
 // src/Path.ts
 var { cos: cos2, sin: sin2, acos, PI, sqrt: sqrt2 } = Math;
-function toPolygon(d) {
+function toPolygon(d, samplingRate) {
   const path = parseSvgPath(d);
   let start = null;
   let prev = null;
@@ -642,39 +644,44 @@ function toPolygon(d) {
   for (const cmd of path) {
     switch (cmd.type) {
       case "MOVE_TO": {
-        start = prev = new Vector(cmd.x, cmd.y);
+        const p = new Vector(cmd.x, cmd.y);
+        vertices.push(p);
+        start = prev = p;
         break;
       }
       case "LINE_TO": {
         const p = new Vector(cmd.x, cmd.y);
-        vertices.push(prev);
+        vertices.push(p);
         prev = p;
         break;
       }
       case "QUADRATIC_BEZIER": {
         vertices.push(
-          ...sampleBezier([
-            prev,
-            new Vector(cmd.cx, cmd.cy),
-            new Vector(cmd.x, cmd.y)
-          ])
+          ...sampleBezier(
+            [prev, new Vector(cmd.cx, cmd.cy), new Vector(cmd.x, cmd.y)],
+            samplingRate
+          )
         );
         prev = new Vector(cmd.x, cmd.y);
         break;
       }
       case "CUBIC_BEZIER": {
         vertices.push(
-          ...sampleBezier([
-            prev,
-            new Vector(cmd.cx1, cmd.cy1),
-            new Vector(cmd.cx2, cmd.cy2),
-            new Vector(cmd.x, cmd.y)
-          ])
+          ...sampleBezier(
+            [
+              prev,
+              new Vector(cmd.cx1, cmd.cy1),
+              new Vector(cmd.cx2, cmd.cy2),
+              new Vector(cmd.x, cmd.y)
+            ],
+            samplingRate
+          )
         );
         prev = new Vector(cmd.x, cmd.y);
         break;
       }
       case "ELLIPSE": {
+        break;
       }
       case "CLOSE_PATH": {
         vertices.push(start);
@@ -687,9 +694,6 @@ function toPolygon(d) {
   if (polygon.paths[0].size && !isPathClockwise2(polygon.paths[0])) {
     polygon.paths[0].items.reverse();
   }
-  polygon.paths[0].items = polygon.paths[0].items.map(
-    (p) => p.translate(500, 200).scale(1.5)
-  );
   return polygon;
 }
 function isClockwise2(a, b, c) {
@@ -813,10 +817,16 @@ function parseSvgPath(d) {
   }
   function moveTo() {
     const res3 = [];
+    let first = true;
     do {
       x = number();
       y = number();
-      res3.push({ type: "MOVE_TO", x, y });
+      if (first) {
+        first = false;
+        res3.push({ type: "MOVE_TO", x, y });
+      } else {
+        res3.push({ type: "LINE_TO", x, y });
+      }
     } while (!/[a-zA-Z]/.test(d[i]));
     isPrevCubic = false;
     isPrevQuadratic = false;
@@ -824,10 +834,16 @@ function parseSvgPath(d) {
   }
   function moveToDelta() {
     const res3 = [];
+    let first = true;
     do {
       x += number();
       y += number();
-      res3.push({ type: "MOVE_TO", x, y });
+      if (first) {
+        first = false;
+        res3.push({ type: "MOVE_TO", x, y });
+      } else {
+        res3.push({ type: "LINE_TO", x, y });
+      }
     } while (!/[a-zA-Z]/.test(d[i]));
     isPrevCubic = false;
     isPrevQuadratic = false;
@@ -13339,12 +13355,13 @@ function parseColor(s) {
   }
 }
 svg.children[0].children[0].querySelectorAll("g").forEach((g) => {
-  const polygon = toPolygon(g.children[0].getAttribute("d"));
+  const d = g.children[0].getAttribute("d");
+  const polygon = toPolygon(d, 9).scale(1.5).translate(1e3, 500);
   const draw2 = renderer.prepare(polygon);
   function render() {
     const s = g.getAttribute("fill") ?? "#000000";
     const color = parseColor(s);
-    draw2(color);
+    draw2(color, void 0, void 0);
   }
   render();
 });
@@ -13357,28 +13374,6 @@ var texts = makeText(
   FontBook.NotoSerif,
   1e3 / fontSize
 );
-for (const text of texts) {
-  let render = function() {
-    draw2(
-      active ? [1, 0, 0, 1] : [0, 0, 0, 1],
-      void 0,
-      (type) => {
-        if (type == "pointerenter") {
-          active = true;
-        } else if (type == "pointerleave") {
-          active = false;
-        } else if (type == "click") {
-          location.href = "./cpu";
-        }
-        render();
-      },
-      true
-    );
-  };
-  const draw2 = renderer.prepare(text);
-  let active = false;
-  render();
-}
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:
