@@ -46,7 +46,15 @@ svg.children[0].children[0].querySelectorAll("g").forEach((g) => {
   render();
 });
 
-const texts = makeText("hello world!", 100, 1200, 400, FontBook.NotoSerif);
+const fontSize = 400;
+const texts = makeText(
+  "hello world!",
+  100,
+  1200,
+  400,
+  FontBook.NotoSerif,
+  1000 / fontSize
+);
 
 for (const text of texts) {
   const draw = renderer.prepare(text);
@@ -75,7 +83,8 @@ function makeText(
   dx: number,
   dy: number,
   size: number,
-  font: Font
+  font: Font,
+  samplingRate: number
 ): Array<Polygon> {
   const polygons: Array<Polygon> = [];
 
@@ -99,23 +108,25 @@ function makeText(
         }
         case "Q": {
           current.push(
-            ...sampleBezier([
-              prev!,
-              new Vector(cmd.x1, cmd.y1),
-              new Vector(cmd.x, cmd.y),
-            ])
+            ...sampleBezier(
+              [prev!, new Vector(cmd.x1, cmd.y1), new Vector(cmd.x, cmd.y)],
+              samplingRate
+            )
           );
           prev = new Vector(cmd.x, cmd.y);
           break;
         }
         case "C": {
           current.push(
-            ...sampleBezier([
-              prev!,
-              new Vector(cmd.x1, cmd.y1),
-              new Vector(cmd.x2, cmd.y2),
-              new Vector(cmd.x, cmd.y),
-            ])
+            ...sampleBezier(
+              [
+                prev!,
+                new Vector(cmd.x1, cmd.y1),
+                new Vector(cmd.x2, cmd.y2),
+                new Vector(cmd.x, cmd.y),
+              ],
+              samplingRate
+            )
           );
           prev = new Vector(cmd.x, cmd.y);
           break;

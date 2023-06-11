@@ -3563,10 +3563,10 @@ Glyph.prototype.addUnicode = function(unicode) {
 Glyph.prototype.getBoundingBox = function() {
   return this.path.getBoundingBox();
 };
-Glyph.prototype.getPath = function(x, y, fontSize, options, font) {
+Glyph.prototype.getPath = function(x, y, fontSize2, options, font) {
   x = x !== void 0 ? x : 0;
   y = y !== void 0 ? y : 0;
-  fontSize = fontSize !== void 0 ? fontSize : 72;
+  fontSize2 = fontSize2 !== void 0 ? fontSize2 : 72;
   var commands;
   var hPoints;
   if (!options) {
@@ -3575,7 +3575,7 @@ Glyph.prototype.getPath = function(x, y, fontSize, options, font) {
   var xScale = options.xScale;
   var yScale = options.yScale;
   if (options.hinting && font && font.hinting) {
-    hPoints = this.path && font.hinting.exec(this, fontSize);
+    hPoints = this.path && font.hinting.exec(this, fontSize2);
   }
   if (hPoints) {
     commands = font.hinting.getCommands(hPoints);
@@ -3584,7 +3584,7 @@ Glyph.prototype.getPath = function(x, y, fontSize, options, font) {
     xScale = yScale = 1;
   } else {
     commands = this.path.commands;
-    var scale = 1 / (this.path.unitsPerEm || 1e3) * fontSize;
+    var scale = 1 / (this.path.unitsPerEm || 1e3) * fontSize2;
     if (xScale === void 0) {
       xScale = scale;
     }
@@ -3679,10 +3679,10 @@ Glyph.prototype.getMetrics = function() {
   metrics.rightSideBearing = this.advanceWidth - metrics.leftSideBearing - (metrics.xMax - metrics.xMin);
   return metrics;
 };
-Glyph.prototype.draw = function(ctx, x, y, fontSize, options) {
-  this.getPath(x, y, fontSize, options).draw(ctx);
+Glyph.prototype.draw = function(ctx, x, y, fontSize2, options) {
+  this.getPath(x, y, fontSize2, options).draw(ctx);
 };
-Glyph.prototype.drawPoints = function(ctx, x, y, fontSize) {
+Glyph.prototype.drawPoints = function(ctx, x, y, fontSize2) {
   function drawCircles(l, x2, y2, scale2) {
     ctx.beginPath();
     for (var j = 0; j < l.length; j += 1) {
@@ -3694,8 +3694,8 @@ Glyph.prototype.drawPoints = function(ctx, x, y, fontSize) {
   }
   x = x !== void 0 ? x : 0;
   y = y !== void 0 ? y : 0;
-  fontSize = fontSize !== void 0 ? fontSize : 24;
-  var scale = 1 / this.path.unitsPerEm * fontSize;
+  fontSize2 = fontSize2 !== void 0 ? fontSize2 : 24;
+  var scale = 1 / this.path.unitsPerEm * fontSize2;
   var blueCircles = [];
   var redCircles = [];
   var path = this.path;
@@ -3716,12 +3716,12 @@ Glyph.prototype.drawPoints = function(ctx, x, y, fontSize) {
   ctx.fillStyle = "red";
   drawCircles(redCircles, x, y, scale);
 };
-Glyph.prototype.drawMetrics = function(ctx, x, y, fontSize) {
+Glyph.prototype.drawMetrics = function(ctx, x, y, fontSize2) {
   var scale;
   x = x !== void 0 ? x : 0;
   y = y !== void 0 ? y : 0;
-  fontSize = fontSize !== void 0 ? fontSize : 24;
-  scale = 1 / this.path.unitsPerEm * fontSize;
+  fontSize2 = fontSize2 !== void 0 ? fontSize2 : 24;
+  scale = 1 / this.path.unitsPerEm * fontSize2;
   ctx.lineWidth = 1;
   ctx.strokeStyle = "black";
   draw.line(ctx, x, -1e4, x, 1e4);
@@ -11649,12 +11649,12 @@ Font.prototype.defaultRenderOptions = {
     { script: "latn", tags: ["liga", "rlig"] }
   ]
 };
-Font.prototype.forEachGlyph = function(text, x, y, fontSize, options, callback) {
+Font.prototype.forEachGlyph = function(text, x, y, fontSize2, options, callback) {
   x = x !== void 0 ? x : 0;
   y = y !== void 0 ? y : 0;
-  fontSize = fontSize !== void 0 ? fontSize : 72;
+  fontSize2 = fontSize2 !== void 0 ? fontSize2 : 72;
   options = Object.assign({}, this.defaultRenderOptions, options);
-  var fontScale = 1 / this.unitsPerEm * fontSize;
+  var fontScale = 1 / this.unitsPerEm * fontSize2;
   var glyphs = this.stringToGlyphs(text, options);
   var kerningLookups;
   if (options.kerning) {
@@ -11663,7 +11663,7 @@ Font.prototype.forEachGlyph = function(text, x, y, fontSize, options, callback) 
   }
   for (var i = 0; i < glyphs.length; i += 1) {
     var glyph = glyphs[i];
-    callback.call(this, glyph, x, y, fontSize, options);
+    callback.call(this, glyph, x, y, fontSize2, options);
     if (glyph.advanceWidth) {
       x += glyph.advanceWidth * fontScale;
     }
@@ -11672,43 +11672,43 @@ Font.prototype.forEachGlyph = function(text, x, y, fontSize, options, callback) 
       x += kerningValue * fontScale;
     }
     if (options.letterSpacing) {
-      x += options.letterSpacing * fontSize;
+      x += options.letterSpacing * fontSize2;
     } else if (options.tracking) {
-      x += options.tracking / 1e3 * fontSize;
+      x += options.tracking / 1e3 * fontSize2;
     }
   }
   return x;
 };
-Font.prototype.getPath = function(text, x, y, fontSize, options) {
+Font.prototype.getPath = function(text, x, y, fontSize2, options) {
   var fullPath = new Path();
-  this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
+  this.forEachGlyph(text, x, y, fontSize2, options, function(glyph, gX, gY, gFontSize) {
     var glyphPath = glyph.getPath(gX, gY, gFontSize, options, this);
     fullPath.extend(glyphPath);
   });
   return fullPath;
 };
-Font.prototype.getPaths = function(text, x, y, fontSize, options) {
+Font.prototype.getPaths = function(text, x, y, fontSize2, options) {
   var glyphPaths = [];
-  this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
+  this.forEachGlyph(text, x, y, fontSize2, options, function(glyph, gX, gY, gFontSize) {
     var glyphPath = glyph.getPath(gX, gY, gFontSize, options, this);
     glyphPaths.push(glyphPath);
   });
   return glyphPaths;
 };
-Font.prototype.getAdvanceWidth = function(text, fontSize, options) {
-  return this.forEachGlyph(text, 0, 0, fontSize, options, function() {
+Font.prototype.getAdvanceWidth = function(text, fontSize2, options) {
+  return this.forEachGlyph(text, 0, 0, fontSize2, options, function() {
   });
 };
-Font.prototype.draw = function(ctx, text, x, y, fontSize, options) {
-  this.getPath(text, x, y, fontSize, options).draw(ctx);
+Font.prototype.draw = function(ctx, text, x, y, fontSize2, options) {
+  this.getPath(text, x, y, fontSize2, options).draw(ctx);
 };
-Font.prototype.drawPoints = function(ctx, text, x, y, fontSize, options) {
-  this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
+Font.prototype.drawPoints = function(ctx, text, x, y, fontSize2, options) {
+  this.forEachGlyph(text, x, y, fontSize2, options, function(glyph, gX, gY, gFontSize) {
     glyph.drawPoints(ctx, gX, gY, gFontSize);
   });
 };
-Font.prototype.drawMetrics = function(ctx, text, x, y, fontSize, options) {
-  this.forEachGlyph(text, x, y, fontSize, options, function(glyph, gX, gY, gFontSize) {
+Font.prototype.drawMetrics = function(ctx, text, x, y, fontSize2, options) {
+  this.forEachGlyph(text, x, y, fontSize2, options, function(glyph, gX, gY, gFontSize) {
     glyph.drawMetrics(ctx, gX, gY, gFontSize);
   });
 };
@@ -12460,12 +12460,9 @@ function bezier(controlPoints, t) {
   }
   return points[0];
 }
-function sampleBezier(controlPoints) {
+function sampleBezier(controlPoints, samplingRate) {
   const dist = controlPoints[0].sub(controlPoints[controlPoints.length - 1]).norm();
-  const n = Math.min(
-    Math.max(Math.round(controlPoints.length * (20 / dist)), 1),
-    20
-  );
+  const n = samplingRate ?? Math.min(Math.max(Math.round(controlPoints.length * (20 / dist)), 1), 20);
   const path = new CyclicList();
   for (let t = 0; t < 1; t += 1 / n) {
     path.push(bezier([...controlPoints], t));
@@ -13281,7 +13278,15 @@ svg.children[0].children[0].querySelectorAll("g").forEach((g) => {
   }
   render();
 });
-var texts = makeText("hello world!", 100, 1200, 400, FontBook.NotoSerif);
+var fontSize = 400;
+var texts = makeText(
+  "hello world!",
+  100,
+  1200,
+  400,
+  FontBook.NotoSerif,
+  1e3 / fontSize
+);
 for (const text of texts) {
   let render = function() {
     draw2(
@@ -13302,7 +13307,7 @@ for (const text of texts) {
   let active = false;
   render();
 }
-function makeText(text, dx, dy, size, font) {
+function makeText(text, dx, dy, size, font, samplingRate) {
   const polygons = [];
   for (const path of font.getPaths(text, dx, dy, size)) {
     let start = null;
@@ -13323,23 +13328,25 @@ function makeText(text, dx, dy, size, font) {
         }
         case "Q": {
           current.push(
-            ...sampleBezier([
-              prev,
-              new Vector(cmd.x1, cmd.y1),
-              new Vector(cmd.x, cmd.y)
-            ])
+            ...sampleBezier(
+              [prev, new Vector(cmd.x1, cmd.y1), new Vector(cmd.x, cmd.y)],
+              samplingRate
+            )
           );
           prev = new Vector(cmd.x, cmd.y);
           break;
         }
         case "C": {
           current.push(
-            ...sampleBezier([
-              prev,
-              new Vector(cmd.x1, cmd.y1),
-              new Vector(cmd.x2, cmd.y2),
-              new Vector(cmd.x, cmd.y)
-            ])
+            ...sampleBezier(
+              [
+                prev,
+                new Vector(cmd.x1, cmd.y1),
+                new Vector(cmd.x2, cmd.y2),
+                new Vector(cmd.x, cmd.y)
+              ],
+              samplingRate
+            )
           );
           prev = new Vector(cmd.x, cmd.y);
           break;

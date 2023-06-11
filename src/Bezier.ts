@@ -15,16 +15,18 @@ export function bezier(controlPoints: Array<Vector>, t: number) {
   return points[0];
 }
 
-export function sampleBezier(controlPoints: Array<Vector>): CyclicList<Vector> {
+export function sampleBezier(
+  controlPoints: Array<Vector>,
+  samplingRate?: number
+): CyclicList<Vector> {
   const dist = controlPoints[0]
     .sub(controlPoints[controlPoints.length - 1])
     .norm();
 
   // TODO: adjust sampling rate based on curvature?
-  const n = Math.min(
-    Math.max(Math.round(controlPoints.length * (20 / dist)), 1),
-    20
-  );
+  const n =
+    samplingRate ??
+    Math.min(Math.max(Math.round(controlPoints.length * (20 / dist)), 1), 20);
 
   const path = new CyclicList<Vector>();
   for (let t = 0; t < 1; t += 1 / n) {
