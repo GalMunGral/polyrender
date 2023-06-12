@@ -575,9 +575,18 @@ var ActiveEdge = class {
     this.reversed = reversed;
   }
 };
+var BoundingBox = class {
+  constructor(left, right, top, bottom) {
+    this.left = left;
+    this.right = right;
+    this.top = top;
+    this.bottom = bottom;
+  }
+};
 var Polygon = class {
   _visibleEdges = null;
   _triangularMesh;
+  _boundingBox;
   paths;
   constructor(paths) {
     this.paths = paths.map(function dedupe(path) {
@@ -590,6 +599,24 @@ var Polygon = class {
       }
       return res;
     });
+  }
+  get boundingBox() {
+    if (!this._boundingBox) {
+      let left = Infinity;
+      let right = -Infinity;
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const path of this.paths) {
+        for (const { x, y } of path) {
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+      this._boundingBox = new BoundingBox(left, right, top, bottom);
+    }
+    return this._boundingBox;
   }
   get mesh() {
     if (!this._triangularMesh) {
@@ -611,7 +638,11 @@ var Polygon = class {
     return this._visibleEdges;
   }
   contains({ x, y }) {
+    const { left, right, top, bottom } = this.boundingBox;
+    if (x < left || x > right || y < top || y > bottom)
+      return false;
     let winding = 0;
+    let intersecitons = 0;
     for (const { x1, y1, x2, y2, reversed } of this.visibleEdges) {
       if (y1 > y)
         break;
@@ -621,9 +652,10 @@ var Polygon = class {
       const z = x1 + k * (y - y1);
       if (z > x) {
         winding += reversed ? -1 : 1;
+        intersecitons++;
       }
     }
-    return winding != 0;
+    return intersecitons % 2 == 1;
   }
   traverse(fn) {
     if (!this.visibleEdges.length)
@@ -1496,16 +1528,16 @@ var tinyInflate = tinf_uncompress;
 function derive(v0, v1, v2, v3, t) {
   return Math.pow(1 - t, 3) * v0 + 3 * Math.pow(1 - t, 2) * t * v1 + 3 * (1 - t) * Math.pow(t, 2) * v2 + Math.pow(t, 3) * v3;
 }
-function BoundingBox() {
+function BoundingBox2() {
   this.x1 = Number.NaN;
   this.y1 = Number.NaN;
   this.x2 = Number.NaN;
   this.y2 = Number.NaN;
 }
-BoundingBox.prototype.isEmpty = function() {
+BoundingBox2.prototype.isEmpty = function() {
   return isNaN(this.x1) || isNaN(this.y1) || isNaN(this.x2) || isNaN(this.y2);
 };
-BoundingBox.prototype.addPoint = function(x, y) {
+BoundingBox2.prototype.addPoint = function(x, y) {
   if (typeof x === "number") {
     if (isNaN(this.x1) || isNaN(this.x2)) {
       this.x1 = x;
@@ -1531,13 +1563,13 @@ BoundingBox.prototype.addPoint = function(x, y) {
     }
   }
 };
-BoundingBox.prototype.addX = function(x) {
+BoundingBox2.prototype.addX = function(x) {
   this.addPoint(x, null);
 };
-BoundingBox.prototype.addY = function(y) {
+BoundingBox2.prototype.addY = function(y) {
   this.addPoint(null, y);
 };
-BoundingBox.prototype.addBezier = function(x0, y0, x1, y1, x2, y2, x, y) {
+BoundingBox2.prototype.addBezier = function(x0, y0, x1, y1, x2, y2, x, y) {
   var p0 = [x0, y0];
   var p1 = [x1, y1];
   var p2 = [x2, y2];
@@ -1587,7 +1619,7 @@ BoundingBox.prototype.addBezier = function(x0, y0, x1, y1, x2, y2, x, y) {
     }
   }
 };
-BoundingBox.prototype.addQuad = function(x0, y0, x1, y1, x, y) {
+BoundingBox2.prototype.addQuad = function(x0, y0, x1, y1, x, y) {
   var cp1x = x0 + 2 / 3 * (x1 - x0);
   var cp1y = y0 + 2 / 3 * (y1 - y0);
   var cp2x = cp1x + 1 / 3 * (x - x0);
@@ -1642,7 +1674,7 @@ Path.prototype.close = Path.prototype.closePath = function() {
 Path.prototype.extend = function(pathOrCommands) {
   if (pathOrCommands.commands) {
     pathOrCommands = pathOrCommands.commands;
-  } else if (pathOrCommands instanceof BoundingBox) {
+  } else if (pathOrCommands instanceof BoundingBox2) {
     var box = pathOrCommands;
     this.moveTo(box.x1, box.y1);
     this.lineTo(box.x2, box.y1);
@@ -1654,7 +1686,7 @@ Path.prototype.extend = function(pathOrCommands) {
   Array.prototype.push.apply(this.commands, pathOrCommands);
 };
 Path.prototype.getBoundingBox = function() {
-  var box = new BoundingBox();
+  var box = new BoundingBox2();
   var startX = 0;
   var startY = 0;
   var prevX = 0;
@@ -13673,11 +13705,12 @@ var Tiger = class {
   }
 };
 var Text = class {
-  constructor(s, dx, dy, size) {
+  constructor(s, dx, dy, size, font = FontBook.NotoSerif) {
     this.s = s;
     this.dx = dx;
     this.dy = dy;
     this.size = size;
+    this.font = font;
     this.active = Array(s.length).fill(false);
     this.prepare();
   }
@@ -13690,7 +13723,7 @@ var Text = class {
       this.dx,
       this.dy,
       this.size,
-      FontBook.NotoSerif,
+      this.font,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
   }
@@ -13725,9 +13758,9 @@ var Text = class {
 renderer.register(new Tiger(3 * canvas.width / 5, canvas.height / 4));
 renderer.register(new Text("This is rendered on GPU", 100, 500, 120));
 renderer.register(new Text("Click on the image to see the mesh", 100, 600, 80));
-renderer.register(new Text("Click me", 100, 900, 200));
+renderer.register(new Text("Click on the text", 100, 900, 150));
 renderer.register(
-  new Text("to check out the CPU-rendered version", 100, 1100, 80)
+  new Text("to check out the CPU-rendered version", 100, 1e3, 80)
 );
 renderer.register(new SampleRateControl(100, 100));
 /*! Bundled license information:

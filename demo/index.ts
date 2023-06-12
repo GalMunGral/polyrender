@@ -6,6 +6,7 @@ import { Polygon } from "polyrender/Polygon";
 import { CyclicList } from "polyrender/CyclicList";
 import { Vector } from "polyrender/Vector";
 import { makeStroke } from "polyrender/Stroke";
+import { Font } from "opentype.js";
 
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -258,7 +259,8 @@ class Text {
     private s: string,
     private dx: number,
     private dy: number,
-    private size: number
+    private size: number,
+    private font: Font = FontBook.NotoSerif
   ) {
     this.active = Array(s.length).fill(false);
     this.prepare();
@@ -270,7 +272,7 @@ class Text {
       this.dx,
       this.dy,
       this.size,
-      FontBook.NotoSerif,
+      this.font,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon)));
   }
@@ -307,8 +309,8 @@ class Text {
 renderer.register(new Tiger((3 * canvas.width) / 5, canvas.height / 4));
 renderer.register(new Text("This is rendered on GPU", 100, 500, 120));
 renderer.register(new Text("Click on the image to see the mesh", 100, 600, 80));
-renderer.register(new Text("Click me", 100, 900, 200));
+renderer.register(new Text("Click on the text", 100, 900, 150));
 renderer.register(
-  new Text("to check out the CPU-rendered version", 100, 1100, 80)
+  new Text("to check out the CPU-rendered version", 100, 1000, 80)
 );
 renderer.register(new SampleRateControl(100, 100));

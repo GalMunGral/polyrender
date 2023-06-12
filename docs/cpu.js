@@ -351,9 +351,18 @@ var ActiveEdge = class {
     this.reversed = reversed;
   }
 };
+var BoundingBox = class {
+  constructor(left, right, top, bottom) {
+    this.left = left;
+    this.right = right;
+    this.top = top;
+    this.bottom = bottom;
+  }
+};
 var Polygon = class {
   _visibleEdges = null;
   _triangularMesh;
+  _boundingBox;
   paths;
   constructor(paths) {
     this.paths = paths.map(function dedupe(path) {
@@ -366,6 +375,24 @@ var Polygon = class {
       }
       return res;
     });
+  }
+  get boundingBox() {
+    if (!this._boundingBox) {
+      let left = Infinity;
+      let right = -Infinity;
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const path of this.paths) {
+        for (const { x, y } of path) {
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+      this._boundingBox = new BoundingBox(left, right, top, bottom);
+    }
+    return this._boundingBox;
   }
   get mesh() {
     if (!this._triangularMesh) {
@@ -387,7 +414,11 @@ var Polygon = class {
     return this._visibleEdges;
   }
   contains({ x, y }) {
+    const { left, right, top, bottom } = this.boundingBox;
+    if (x < left || x > right || y < top || y > bottom)
+      return false;
     let winding = 0;
+    let intersecitons = 0;
     for (const { x1, y1, x2, y2, reversed } of this.visibleEdges) {
       if (y1 > y)
         break;
@@ -397,9 +428,10 @@ var Polygon = class {
       const z = x1 + k * (y - y1);
       if (z > x) {
         winding += reversed ? -1 : 1;
+        intersecitons++;
       }
     }
-    return winding != 0;
+    return intersecitons % 2 == 1;
   }
   traverse(fn) {
     if (!this.visibleEdges.length)
