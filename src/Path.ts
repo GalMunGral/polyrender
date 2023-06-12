@@ -133,7 +133,6 @@ export function toPolygon(d: string, samplingRate?: number) {
       }
     }
   }
-  if (start) vertices.push(start);
 
   const polygon = new Polygon([vertices]);
   if (polygon.paths[0].size && !isPathClockwise(polygon.paths[0])) {

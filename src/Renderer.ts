@@ -102,23 +102,14 @@ export class Renderer {
       if (dirty) this.drawScreen();
     });
 
-    // new ResizeObserver((entries) => {
-    //   const { inlineSize, blockSize } = entries[0].contentBoxSize[0];
-    //   const width = devicePixelRatio * inlineSize;
-    //   const height = devicePixelRatio * blockSize;
-    //   gl.uniform1f(this.viewportWidthLoc, width);
-    //   gl.uniform1f(this.viewportHeightLoc, height);
-    //   gl.viewport(0, 0, width, height);
-    // }).observe(canvas);
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth * devicePixelRatio;
+      canvas.height = window.innerHeight * devicePixelRatio;
+      canvas.style.width = window.innerWidth + "px";
+      canvas.style.height = window.innerHeight + "px";
+      this.drawScreen();
+    });
   }
-
-  // test() {
-  //   this.viewportWidthLoc = gl.getUniformLocation(program, "viewportWidth");
-  //   this.viewportHeightLoc = gl.getUniformLocation(program, "viewportHeight");
-  // }
-
-  // this.viewportWidthLoc = gl.getUniformLocation(program, "viewportWidth");
-  // this.viewportHeightLoc = gl.getUniformLocation(program, "viewportHeight");
 
   public register(obj: InteractiveObject) {
     this.interactiveObjects.push(obj);
@@ -204,15 +195,16 @@ export class Renderer {
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
-      gl.uniform4fv(
-        colorUniformLoc,
-        new Float32Array(config?.color ?? [0, 0, 0, 0])
-      );
       if (debug) {
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
+        gl.uniform4fv(
+          colorUniformLoc,
+          new Float32Array(config?.color ?? [0, 0, 0, 0])
+        );
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(
           gl.TRIANGLES,

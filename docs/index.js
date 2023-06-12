@@ -153,13 +153,14 @@ var Renderer = class {
       if (dirty)
         this.drawScreen();
     });
+    window.addEventListener("resize", () => {
+      canvas2.width = window.innerWidth * devicePixelRatio;
+      canvas2.height = window.innerHeight * devicePixelRatio;
+      canvas2.style.width = window.innerWidth + "px";
+      canvas2.style.height = window.innerHeight + "px";
+      this.drawScreen();
+    });
   }
-  // test() {
-  //   this.viewportWidthLoc = gl.getUniformLocation(program, "viewportWidth");
-  //   this.viewportHeightLoc = gl.getUniformLocation(program, "viewportHeight");
-  // }
-  // this.viewportWidthLoc = gl.getUniformLocation(program, "viewportWidth");
-  // this.viewportHeightLoc = gl.getUniformLocation(program, "viewportHeight");
   register(obj) {
     this.interactiveObjects.push(obj);
     requestAnimationFrame(() => {
@@ -224,22 +225,23 @@ var Renderer = class {
       "viewportHeight"
     );
     const colorUniformLoc = gl.getUniformLocation(program, "color");
-    return (config, transform, eventHandler, debug = false) => {
+    return (config, transform, eventHandler, debug2 = false) => {
       gl.useProgram(program);
       gl.enable(gl.BLEND);
       gl.bindVertexArray(vao);
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
-      gl.uniform4fv(
-        colorUniformLoc,
-        new Float32Array(config?.color ?? [0, 0, 0, 0])
-      );
-      if (debug) {
+      if (debug2) {
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
+        gl.uniform4fv(
+          colorUniformLoc,
+          new Float32Array(config?.color ?? [0, 0, 0, 0])
+        );
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
         gl.drawElements(
           gl.TRIANGLES,
@@ -756,8 +758,6 @@ function toPolygon(d, samplingRate) {
       }
     }
   }
-  if (start)
-    vertices.push(start);
   const polygon = new Polygon([vertices]);
   if (polygon.paths[0].size && !isPathClockwise2(polygon.paths[0])) {
     polygon.paths[0].items.reverse();
@@ -13417,6 +13417,44 @@ function parseColor(s) {
   }
 }
 
+// src/Stroke.ts
+function sampleCircle(samplingRate) {
+  const res = new CyclicList();
+  for (let i = 0; i < samplingRate; ++i) {
+    const theta = i * (2 * Math.PI / samplingRate);
+    res.push(new Vector(Math.cos(theta), Math.sin(theta)));
+  }
+  return new Polygon([res]);
+}
+function makeStroke(points, lineWidth, closed = false) {
+  if (points.size < 2)
+    return [];
+  const res = [];
+  for (let i = 0; i < points.size; ++i) {
+    const { x, y } = points.get(i);
+    const rate = Math.max(20, Math.round(lineWidth / 4));
+    res.push(sampleCircle(rate).scale(lineWidth).translate(x, y));
+  }
+  const n = points.size;
+  const end = closed ? n : n - 1;
+  for (let i = 0; i < end; ++i) {
+    const p1 = points.get(i);
+    const p2 = points.get(i + 1);
+    const e = p2.sub(p1).normalize().rotate(Math.PI / 2);
+    res.push(
+      new Polygon([
+        new CyclicList([
+          p1.add(e.scale(lineWidth)),
+          p1.add(e.scale(-lineWidth)),
+          p2.add(e.scale(-lineWidth)),
+          p2.add(e.scale(lineWidth))
+        ])
+      ])
+    );
+  }
+  return res;
+}
+
 // demo/index.ts
 var canvas = document.querySelector("#test");
 var renderer = new Renderer(canvas);
@@ -13426,8 +13464,14 @@ var tigerSvg = new DOMParser().parseFromString(
   )).text(),
   "text/xml"
 );
-var sampleRate = 5;
+var sampleRate = 10;
+var debug = false;
 var SampleRateControl = class {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.prepare();
+  }
   displayDrawFns;
   increaseBtnDrawFn;
   increateBtnTextDrawFns;
@@ -13435,11 +13479,8 @@ var SampleRateControl = class {
   decreateBtnTextDrawFns;
   increaseBtnHover = false;
   decreaseBtnHover = false;
-  constructor() {
-    this.prepare();
-  }
+  timeoutHandle = -1;
   prepare() {
-    console.log("prepare control");
     this.displayDrawFns = makeText(
       `Sample Rate: ${sampleRate}`,
       100,
@@ -13451,17 +13492,17 @@ var SampleRateControl = class {
     this.increaseBtnDrawFn = renderer.compilePolygon(
       new Polygon([
         new CyclicList([
-          new Vector(80, 150),
-          new Vector(220, 150),
-          new Vector(220, 300),
-          new Vector(80, 300)
+          new Vector(this.x, this.y + 50),
+          new Vector(this.x + 140, this.y + 50),
+          new Vector(this.x + 140, this.y + 200),
+          new Vector(this.x, this.y + 200)
         ])
       ])
     );
     this.increateBtnTextDrawFns = makeText(
       "+1",
-      100,
-      250,
+      this.x + 20,
+      this.y + 150,
       80,
       FontBook.NotoSerif,
       sampleRate
@@ -13469,31 +13510,41 @@ var SampleRateControl = class {
     this.decreaseBtnDrawFn = renderer.compilePolygon(
       new Polygon([
         new CyclicList([
-          new Vector(280, 150),
-          new Vector(420, 150),
-          new Vector(420, 300),
-          new Vector(280, 300)
+          new Vector(this.x + 180, this.y + 50),
+          new Vector(this.x + 320, this.y + 50),
+          new Vector(this.x + 320, this.y + 200),
+          new Vector(this.x + 180, this.y + 200)
         ])
       ])
     );
     this.decreateBtnTextDrawFns = makeText(
       "-1",
-      320,
-      250,
+      this.x + 220,
+      this.y + 150,
       80,
       FontBook.NotoSerif,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
   }
+  update() {
+    this.prepare();
+    clearTimeout(this.timeoutHandle);
+    this.timeoutHandle = setTimeout(() => {
+      renderer.prepare();
+      renderer.drawScreen();
+    }, 1e3);
+  }
   draw() {
-    this.displayDrawFns.forEach((draw2) => draw2({ color: [0, 0, 0, 1] }));
+    this.displayDrawFns.forEach(
+      (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
+    );
     this.increaseBtnDrawFn(
       { color: [1, 0, 0, this.increaseBtnHover ? 0.6 : 0.4] },
       void 0,
       (type) => {
         if (type == "click") {
           sampleRate = Math.min(10, sampleRate + 1);
-          renderer.prepare();
+          this.update();
           return true;
         }
         if (type == "pointerenter") {
@@ -13505,10 +13556,11 @@ var SampleRateControl = class {
           return true;
         }
         return false;
-      }
+      },
+      debug
     );
     this.increateBtnTextDrawFns.forEach(
-      (draw2) => draw2({ color: [0, 0, 0, 1] })
+      (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
     );
     this.decreaseBtnDrawFn(
       { color: [0, 0, 1, this.decreaseBtnHover ? 0.6 : 0.4] },
@@ -13516,7 +13568,7 @@ var SampleRateControl = class {
       (type) => {
         if (type == "click") {
           sampleRate = Math.max(1, sampleRate - 1);
-          renderer.prepare();
+          this.update();
           return true;
         }
         if (type == "pointerenter") {
@@ -13528,44 +13580,61 @@ var SampleRateControl = class {
           return true;
         }
         return false;
-      }
+      },
+      debug
     );
     this.decreateBtnTextDrawFns.forEach(
-      (draw2) => draw2({ color: [0, 0, 0, 1] })
+      (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
     );
   }
 };
 var Tiger = class {
-  debug = false;
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.prepare();
+  }
   colors = [];
   active = [];
   drawFns = [];
-  constructor() {
-    this.prepare();
-  }
   prepare() {
     this.drawFns.length = 0;
     this.colors.length = 0;
     tigerSvg.children[0].children[0].querySelectorAll("g").forEach((g) => {
-      if (g.children[0].id == "path464") {
-        g.children[0].setAttribute(
-          "d",
-          "M 20.895 54.407 c 1.542 1.463 28.505 30.393 28.505 30.393 c 35.2 36.6 7.2 2.4 7.2 2.4 c -7.6 -4.8 -16.8 -23.6 -16.8 -23.6 c -1.2 -2.8 14 7.2 14 7.2 c 4 0.8 17.6 20 17.6 20 c -6.8 -2.4 -2 4.8 -2 4.8 c 2.8 2 23.201 17.6 23.201 17.6 c 3.6 4 7.599 5.6 7.599 5.6 c 14 -5.2 7.6 8 7.6 8 c 2.4 6.8 8 -4.8 8 -4.8 c 11.2 -16.8 -5.2 -14.4 -5.2 -14.4 c -30 2.8 -36.8 -13.2 -36.8 -13.2 c -2.4 -2.4 6.4 0 6.4 0 c 8.401 2 -7.2 -12.4 -7.2 -12.4 c 2.4 0 11.6 6.8 11.6 6.8 c 10.401 9.2 12.401 7.2 12.401 7.2 c 17.999 -8.8 28.399 -1.2 28.399 -1.2 c 2 1.6 -3.6 8.4 -2 13.6 s 6.4 17.6 6.4 17.6 c -2.4 1.6 -2 12.4 -2 12.4 c 16.8 23.2 7.2 21.2 7.2 21.2 c -15.6 -0.4 -0.8 7.2 -0.8 7.2 c 3.2 2 12 9.2 12 9.2 c -2.8 -1.2 -4.4 4 -4.4 4 c 4.8 4 2 8.8 2 8.8 c -6 1.2 -7.2 5.2 -7.2 5.2 c 6.8 8 -3.2 8.4 -3.2 8.4 c 3.6 4.4 -1.2 16.4 -1.2 16.4 c -4.8 0 -11.2 5.6 -11.2 5.6 c 2.4 4.8 -8 10.4 -8 10.4 c -8.4 1.6 -5.6 8.4 -5.6 8.4 c -7.999 6 -10.399 22 -10.399 22 c -0.8 10.4 -3.2 13.6 2 11.6 c 5.199 -2 4.399 -14.4 4.399 -14.4 c -4.799 -15.6 38 -31.6 38 -31.6 c 4 -1.6 4.8 -6.8 4.8 -6.8 c 2 0.4 10.8 8 10.8 8 c 7.6 11.2 8 2 8 2 c 1.2 -3.6 -0.4 -9.6 -0.4 -9.6 c 6 -21.6 -8 -28 -8 -28 c -10 -33.6 4 -25.2 4 -25.2 c 2.8 5.6 13.6 10.8 13.6 10.8 l 3.6 -2.4 c -1.6 -4.8 6.8 -10.8 6.8 -10.8 c 2.8 6.4 8.8 -1.6 8.8 -1.6 c 3.6 -24.4 16 -10 16 -10 c 4 1.2 5.2 -5.6 5.2 -5.6 c 3.6 -10.4 0 -24 0 -24 c 3.6 -0.4 13.2 5.6 13.2 5.6 c 2.8 -3.6 -6.4 -20.4 -2.4 -18 s 8.4 4 8.4 4 c 0.8 -2 -9.2 -14.4 -9.2 -14.4 c -4.4 -2.8 -9.6 -23.2 -9.6 -23.2 c 7.2 3.6 -2.8 -11.6 -2.8 -11.6 c 0 -3.2 6 -14.4 6 -14.4 c -0.8 -6.8 0 -6.4 0 -6.4 c 2.8 1.2 10.8 2.8 4 -3.6 s 0.8 -11.2 0.8 -11.2 c 4.4 -2.8 -9.2 -2.4 -9.2 -2.4 c -5.2 -4.4 -4.8 -8.4 -4.8 -8.4 c 8 2 -6.4 -12.4 -8.8 -16 s 7.2 -8.8 7.2 -8.8 c 13.2 -3.6 1.6 -6.8 1.6 -6.8 c -19.6 0.4 -8.8 -10.4 -8.8 -10.4 c 6 0.4 4.4 -2 4.4 -2 c -5.2 -1.2 -14.8 -7.6 -14.8 -7.6 c -4 -3.6 -0.4 -2.8 -0.4 -2.8 c 16.8 1.2 -12 -10 -12 -10 c 8 0 -10 -10.4 -10 -10.4 c -2 -1.6 -5.2 -9.2 -5.2 -9.2 c -6 -5.2 -10.8 -12 -10.8 -12 c -0.4 -4.4 -5.2 -9.2 -5.2 -9.2 c -11.6 -13.6 -17.2 -13.2 -17.2 -13.2 c -14.8 -3.6 -20 -2.8 -20 -2.8 l -52.8 4.4 c -26.4 12.8 -18.6 33.8 -18.6 33.8 c 6.4 8.4 15.6 4.6 15.6 4.6 c 4.6 -6.2 16.2 -4 16.2 -4 c 20.401 3.2 17.801 -0.4 17.801 -0.4 c -2.4 -4.6 -18.601 -10.8 -18.801 -11.4 s -9 -4 -9 -4 c -3 -1.2 -7.4 -10.4 -7.4 -10.4 c -3.2 -3.4 12.6 2.4 12.6 2.4 c -1.2 1 6.2 5 6.2 5 c 17.401 -1 28.001 9.8 28.001 9.8 c 10.799 16.6 10.999 8.4 10.999 8.4 c 2.8 -9.4 -9 -30.6 -9 -30.6 c 0.4 -2 8.6 4.6 8.6 4.6 c 1.4 -2 2.2 3.8 2.2 3.8 c 0.2 2.4 4 10.4 4 10.4 c 2.8 13 6.4 5.6 6.4 5.6 l 4.6 9.4 c 1.4 2.6 -4.6 10.2 -4.6 10.2 c -0.2 2.8 0.6 2.6 -5 10.2 s -2.2 12 -2.2 12 c -1.4 6.6 7.4 6.2 7.4 6.2 c 2.6 2.2 6 2.2 6 2.2 c 1.8 2 4.2 1.4 4.2 1.4 c 1.6 -3.8 7.8 -1.8 7.8 -1.8 c 1.4 -2.4 9.6 -2.8 9.6 -2.8 c 1 -2.6 1.4 -4.2 4.8 -4.8 s -21.2 -43.6 -21.2 -43.6 c 6.4 -0.8 -1.8 -13.2 -1.8 -13.2 c -2.2 -6.6 9.2 8 11.4 9.4 s 3.2 3.6 1.6 3.4 s -3.4 2 -2 2.2 s 14.4 15.2 17.8 25.4 s 9.4 14.2 15.6 20.2 s 5.4 30.2 5.4 30.2 c -0.4 8.8 5.6 19.4 5.6 19.4 c 2 3.8 -2.2 22 -2.2 22 c -2 2.2 -0.6 3 -0.6 3 c 1 1.2 7.8 14.4 7.8 14.4 c -1.8 -0.2 1.8 3.4 1.8 3.4 c 5.2 6 -1.2 3 -1.2 3 c -6 -1.6 1 8.2 1 8.2 c 1.2 1.8 -7.8 -2.8 -7.8 -2.8 c -9.2 -0.6 2.4 6.6 2.4 6.6 c 8.6 7.2 -2.8 2.8 -2.8 2.8 c -4.6 -1.8 -1.4 5 -1.4 5 c 3.2 1.6 20.4 8.6 20.4 8.6 c 0.4 3.8 -2.6 8.8 -2.6 8.8 c 0.4 4 -1.8 7.4 -1.8 7.4 c -1.2 8.2 -1.8 9 -1.8 9 c -4.2 0.2 -11.6 14 -11.6 14 c -1.8 2.6 -12 14.6 -12 14.6 c -2 7 -20 -0.2 -20 -0.2 c -6.6 3.4 -4.6 0 -4.6 0 c -0.4 -2.2 4.4 -8.2 4.4 -8.2 c 7 -2.6 4.4 -13.4 4.4 -13.4 c 4 -1.4 -7.2 -4.2 -7 -5.4 s 6 -2.6 6 -2.6 c 8 -2 3.6 -4.4 3.6 -4.4 c -0.6 -4 2.4 -9.6 2.4 -9.6 c 11.6 -0.8 0 -17 0 -17 c -10.8 -7.6 -11.8 -13.4 -11.8 -13.4 c 12.6 -8.2 4.4 -20.6 4.6 -24.2 s 1.4 -25.2 1.4 -25.2 c -2 -6.2 -5 -19.8 -5 -19.8 c 2.2 -5.2 9.6 -17.8 9.6 -17.8 c 2.8 -4.2 11.6 -9 9.4 -12 s -10 -1.2 -10 -1.2 c -7.8 -1.4 -7.2 3.8 -7.2 3.8 c -1.6 1 -2.4 6 -2.4 6 c -0.72 7.933 -9.6 14.2 -9.6 14.2 c -11.2 6.2 -2 10.2 -2 10.2 c 6 6.6 -3.8 6.8 -3.8 6.8 c -11 -1.8 -2.8 8.4 -2.8 8.4 c 10.8 12.8 7.8 15.6 7.8 15.6 c -10.2 1 2.4 10.2 2.4 10.2 s -0.8 -2 -0.6 -0.2 s 3.2 6 4 8 s -3.2 2.2 -3.2 2.2 c 0.6 9.6 -14.8 5.4 -14.8 5.4 l -1.6 0.2 c -1.6 0.2 -12.8 -0.6 -18.6 -2.8 s -12.599 -2.2 -12.599 -2.2 s -4 1.8 -11.601 1.6 c -7.6 -0.2 -15.6 2.6 -15.6 2.6 c -4.4 -0.4 4.2 -4.8 4.4 -4.6 s 5.8 -5.4 -2.2 -4.8 c -21.797 1.635 -32.6 -8.6 -32.6 -8.6 c -2 -1.4 -4.6 -4.2 -4.6 -4.2 c -10 -2 1.4 12.4 1.4 12.4 c 1.2 1.4 -0.2 2.4 -0.2 2.4 c -0.8 -1.6 -8.6 -7 -8.6 -7 c -2.811 -0.973 -4.4 -3.2 -6.505 -4.793 z"
-        );
-      } else if (g.children[0].id == "path388") {
-        g.children[0].setAttribute(
-          "d",
-          "m 50.6 84 s -20.4 -19.2 -28.4 -20 c 0 0 -33.2 -3 -49.2 14 c 0 0 17.6 -20.4 45.2 -14.8 c 0 0 -21.6 -4.4 -34 -1.2 l -26.4 14 l -2.8 4.8 s 4 -14.8 22.4 -20.8 c 0 0 21.6 -3 33.6 0 c 0 0 -21.6 -6.8 -31.6 -4.8 c 0 0 -30.4 -2.4 -43.2 24 c 0 0 4 -14.4 18.8 -21.6 c 0 0 13.6 -8.8 34 -6 c 0 0 14 2.4 19.6 5.6 s 4 -0.4 -4.4 -5.2 c 0 0 -5.6 -10 -19.6 -9.6 c 0 0 -39.6 4.6 -53.2 15.6 c 0 0 13.6 -11.2 24 -14 c 0 0 22.4 -8 30.8 -7.2 c 0 0 24.8 1 32.4 -3 c 0 0 -11.2 5 -8 8.2 s 10 10.8 10 12 s 24.2 23.3 27.8 27.7 l 2.2 2.3 z"
-        );
+      const pathEl = g.children[0];
+      let d = pathEl.getAttribute("d");
+      if (pathEl.id == "path464") {
+        d = "M 20.895 54.407 c 1.542 1.463 28.505 30.393 28.505 30.393 c 35.2 36.6 7.2 2.4 7.2 2.4 c -7.6 -4.8 -16.8 -23.6 -16.8 -23.6 c -1.2 -2.8 14 7.2 14 7.2 c 4 0.8 17.6 20 17.6 20 c -6.8 -2.4 -2 4.8 -2 4.8 c 2.8 2 23.201 17.6 23.201 17.6 c 3.6 4 7.599 5.6 7.599 5.6 c 14 -5.2 7.6 8 7.6 8 c 2.4 6.8 8 -4.8 8 -4.8 c 11.2 -16.8 -5.2 -14.4 -5.2 -14.4 c -30 2.8 -36.8 -13.2 -36.8 -13.2 c -2.4 -2.4 6.4 0 6.4 0 c 8.401 2 -7.2 -12.4 -7.2 -12.4 c 2.4 0 11.6 6.8 11.6 6.8 c 10.401 9.2 12.401 7.2 12.401 7.2 c 17.999 -8.8 28.399 -1.2 28.399 -1.2 c 2 1.6 -3.6 8.4 -2 13.6 s 6.4 17.6 6.4 17.6 c -2.4 1.6 -2 12.4 -2 12.4 c 16.8 23.2 7.2 21.2 7.2 21.2 c -15.6 -0.4 -0.8 7.2 -0.8 7.2 c 3.2 2 12 9.2 12 9.2 c -2.8 -1.2 -4.4 4 -4.4 4 c 4.8 4 2 8.8 2 8.8 c -6 1.2 -7.2 5.2 -7.2 5.2 c 6.8 8 -3.2 8.4 -3.2 8.4 c 3.6 4.4 -1.2 16.4 -1.2 16.4 c -4.8 0 -11.2 5.6 -11.2 5.6 c 2.4 4.8 -8 10.4 -8 10.4 c -8.4 1.6 -5.6 8.4 -5.6 8.4 c -7.999 6 -10.399 22 -10.399 22 c -0.8 10.4 -3.2 13.6 2 11.6 c 5.199 -2 4.399 -14.4 4.399 -14.4 c -4.799 -15.6 38 -31.6 38 -31.6 c 4 -1.6 4.8 -6.8 4.8 -6.8 c 2 0.4 10.8 8 10.8 8 c 7.6 11.2 8 2 8 2 c 1.2 -3.6 -0.4 -9.6 -0.4 -9.6 c 6 -21.6 -8 -28 -8 -28 c -10 -33.6 4 -25.2 4 -25.2 c 2.8 5.6 13.6 10.8 13.6 10.8 l 3.6 -2.4 c -1.6 -4.8 6.8 -10.8 6.8 -10.8 c 2.8 6.4 8.8 -1.6 8.8 -1.6 c 3.6 -24.4 16 -10 16 -10 c 4 1.2 5.2 -5.6 5.2 -5.6 c 3.6 -10.4 0 -24 0 -24 c 3.6 -0.4 13.2 5.6 13.2 5.6 c 2.8 -3.6 -6.4 -20.4 -2.4 -18 s 8.4 4 8.4 4 c 0.8 -2 -9.2 -14.4 -9.2 -14.4 c -4.4 -2.8 -9.6 -23.2 -9.6 -23.2 c 7.2 3.6 -2.8 -11.6 -2.8 -11.6 c 0 -3.2 6 -14.4 6 -14.4 c -0.8 -6.8 0 -6.4 0 -6.4 c 2.8 1.2 10.8 2.8 4 -3.6 s 0.8 -11.2 0.8 -11.2 c 4.4 -2.8 -9.2 -2.4 -9.2 -2.4 c -5.2 -4.4 -4.8 -8.4 -4.8 -8.4 c 8 2 -6.4 -12.4 -8.8 -16 s 7.2 -8.8 7.2 -8.8 c 13.2 -3.6 1.6 -6.8 1.6 -6.8 c -19.6 0.4 -8.8 -10.4 -8.8 -10.4 c 6 0.4 4.4 -2 4.4 -2 c -5.2 -1.2 -14.8 -7.6 -14.8 -7.6 c -4 -3.6 -0.4 -2.8 -0.4 -2.8 c 16.8 1.2 -12 -10 -12 -10 c 8 0 -10 -10.4 -10 -10.4 c -2 -1.6 -5.2 -9.2 -5.2 -9.2 c -6 -5.2 -10.8 -12 -10.8 -12 c -0.4 -4.4 -5.2 -9.2 -5.2 -9.2 c -11.6 -13.6 -17.2 -13.2 -17.2 -13.2 c -14.8 -3.6 -20 -2.8 -20 -2.8 l -52.8 4.4 c -26.4 12.8 -18.6 33.8 -18.6 33.8 c 6.4 8.4 15.6 4.6 15.6 4.6 c 4.6 -6.2 16.2 -4 16.2 -4 c 20.401 3.2 17.801 -0.4 17.801 -0.4 c -2.4 -4.6 -18.601 -10.8 -18.801 -11.4 s -9 -4 -9 -4 c -3 -1.2 -7.4 -10.4 -7.4 -10.4 c -3.2 -3.4 12.6 2.4 12.6 2.4 c -1.2 1 6.2 5 6.2 5 c 17.401 -1 28.001 9.8 28.001 9.8 c 10.799 16.6 10.999 8.4 10.999 8.4 c 2.8 -9.4 -9 -30.6 -9 -30.6 c 0.4 -2 8.6 4.6 8.6 4.6 c 1.4 -2 2.2 3.8 2.2 3.8 c 0.2 2.4 4 10.4 4 10.4 c 2.8 13 6.4 5.6 6.4 5.6 l 4.6 9.4 c 1.4 2.6 -4.6 10.2 -4.6 10.2 c -0.2 2.8 0.6 2.6 -5 10.2 s -2.2 12 -2.2 12 c -1.4 6.6 7.4 6.2 7.4 6.2 c 2.6 2.2 6 2.2 6 2.2 c 1.8 2 4.2 1.4 4.2 1.4 c 1.6 -3.8 7.8 -1.8 7.8 -1.8 c 1.4 -2.4 9.6 -2.8 9.6 -2.8 c 1 -2.6 1.4 -4.2 4.8 -4.8 s -21.2 -43.6 -21.2 -43.6 c 6.4 -0.8 -1.8 -13.2 -1.8 -13.2 c -2.2 -6.6 9.2 8 11.4 9.4 s 3.2 3.6 1.6 3.4 s -3.4 2 -2 2.2 s 14.4 15.2 17.8 25.4 s 9.4 14.2 15.6 20.2 s 5.4 30.2 5.4 30.2 c -0.4 8.8 5.6 19.4 5.6 19.4 c 2 3.8 -2.2 22 -2.2 22 c -2 2.2 -0.6 3 -0.6 3 c 1 1.2 7.8 14.4 7.8 14.4 c -1.8 -0.2 1.8 3.4 1.8 3.4 c 5.2 6 -1.2 3 -1.2 3 c -6 -1.6 1 8.2 1 8.2 c 1.2 1.8 -7.8 -2.8 -7.8 -2.8 c -9.2 -0.6 2.4 6.6 2.4 6.6 c 8.6 7.2 -2.8 2.8 -2.8 2.8 c -4.6 -1.8 -1.4 5 -1.4 5 c 3.2 1.6 20.4 8.6 20.4 8.6 c 0.4 3.8 -2.6 8.8 -2.6 8.8 c 0.4 4 -1.8 7.4 -1.8 7.4 c -1.2 8.2 -1.8 9 -1.8 9 c -4.2 0.2 -11.6 14 -11.6 14 c -1.8 2.6 -12 14.6 -12 14.6 c -2 7 -20 -0.2 -20 -0.2 c -6.6 3.4 -4.6 0 -4.6 0 c -0.4 -2.2 4.4 -8.2 4.4 -8.2 c 7 -2.6 4.4 -13.4 4.4 -13.4 c 4 -1.4 -7.2 -4.2 -7 -5.4 s 6 -2.6 6 -2.6 c 8 -2 3.6 -4.4 3.6 -4.4 c -0.6 -4 2.4 -9.6 2.4 -9.6 c 11.6 -0.8 0 -17 0 -17 c -10.8 -7.6 -11.8 -13.4 -11.8 -13.4 c 12.6 -8.2 4.4 -20.6 4.6 -24.2 s 1.4 -25.2 1.4 -25.2 c -2 -6.2 -5 -19.8 -5 -19.8 c 2.2 -5.2 9.6 -17.8 9.6 -17.8 c 2.8 -4.2 11.6 -9 9.4 -12 s -10 -1.2 -10 -1.2 c -7.8 -1.4 -7.2 3.8 -7.2 3.8 c -1.6 1 -2.4 6 -2.4 6 c -0.72 7.933 -9.6 14.2 -9.6 14.2 c -11.2 6.2 -2 10.2 -2 10.2 c 6 6.6 -3.8 6.8 -3.8 6.8 c -11 -1.8 -2.8 8.4 -2.8 8.4 c 10.8 12.8 7.8 15.6 7.8 15.6 c -10.2 1 2.4 10.2 2.4 10.2 s -0.8 -2 -0.6 -0.2 s 3.2 6 4 8 s -3.2 2.2 -3.2 2.2 c 0.6 9.6 -14.8 5.4 -14.8 5.4 l -1.6 0.2 c -1.6 0.2 -12.8 -0.6 -18.6 -2.8 s -12.599 -2.2 -12.599 -2.2 s -4 1.8 -11.601 1.6 c -7.6 -0.2 -15.6 2.6 -15.6 2.6 c -4.4 -0.4 4.2 -4.8 4.4 -4.6 s 5.8 -5.4 -2.2 -4.8 c -21.797 1.635 -32.6 -8.6 -32.6 -8.6 c -2 -1.4 -4.6 -4.2 -4.6 -4.2 c -10 -2 1.4 12.4 1.4 12.4 c 1.2 1.4 -0.2 2.4 -0.2 2.4 c -0.8 -1.6 -8.6 -7 -8.6 -7 c -2.811 -0.973 -4.4 -3.2 -6.505 -4.793 z";
+      } else if (pathEl.id == "path388") {
+        d = "m 50.6 84 s -20.4 -19.2 -28.4 -20 c 0 0 -33.2 -3 -49.2 14 c 0 0 17.6 -20.4 45.2 -14.8 c 0 0 -21.6 -4.4 -34 -1.2 l -26.4 14 l -2.8 4.8 s 4 -14.8 22.4 -20.8 c 0 0 21.6 -3 33.6 0 c 0 0 -21.6 -6.8 -31.6 -4.8 c 0 0 -30.4 -2.4 -43.2 24 c 0 0 4 -14.4 18.8 -21.6 c 0 0 13.6 -8.8 34 -6 c 0 0 14 2.4 19.6 5.6 s 4 -0.4 -4.4 -5.2 c 0 0 -5.6 -10 -19.6 -9.6 c 0 0 -39.6 4.6 -53.2 15.6 c 0 0 13.6 -11.2 24 -14 c 0 0 22.4 -8 30.8 -7.2 c 0 0 24.8 1 32.4 -3 c 0 0 -11.2 5 -8 8.2 s 10 10.8 10 12 s 24.2 23.3 27.8 27.7 l 2.2 2.3 z";
+      } else if (pathEl.id == "path528") {
+        d = "m 2.2 -58 s -9.238 -2.872 -20.4 22.8 c 0 0 -2.4 5.2 -4.8 7.2 s -13.6 5.6 -15.6 9.6 l -10.4 16 s 14.8 -16 18 -18.4 c 0 0 8 -8.4 4.8 -1.6 c 0 0 -14 10.8 -12.8 20 c 0 0 -5.6 14.4 -6.4 16.4 c 0 0 16 -32 18.4 -33.2 s 3.6 -1.2 2.4 2.4 s -3.4 18.8 -4.4 22 c 0 0 8 -20.4 7.2 -23.6 c 0 0 3.2 -3.6 5.6 1.6 l -1.2 16 l 4.4 12 s -2.4 -11.2 -0.8 -26.8 c 0 0 -2 -10.4 2 -4.8 s 11.8 11.4 13.6 16.4 c 0 0 -5.2 -17.6 -14.4 -22.4 l -4 6 l -1.2 -2 s -3.6 -0.8 0.8 -7.6 s 4 -7.6 4 -7.6 s 6.4 7.2 8 7.2 c 0 0 13.2 -7.6 14.4 16.8 c 0 0 6.8 -14.4 -2.4 -21.2 c 0 0 -14.8 -2 -13.6 -7.2 l 7.2 -12.4 c 3.6 -5.2 2 -2.4 2 -2.4 z";
+      } else if (pathEl.id == "path496") {
+        d = "m -109 131.05 c 2.6 3.95 5.8 8.15 8 10.55 c 4.4 4.8 12.8 11.2 14.4 11.2 s 4.8 3.2 6.8 2.4 s 4.8 -2.4 5.2 -5.6 s -2.4 -5.6 -2.4 -5.6 c -3.066 -1.53 -5.806 -5.02 -7.385 -7.35 c 0 0 0.185 2.55 -5.015 1.75 s -10.4 -3.6 -12 -6.8 s -4 -5.6 -2.4 -2 s 4 7.2 5.6 7.6 s 1.2 1.6 -1.2 1.2 s -5.2 -0.8 -8.6 -6.4 z";
+      } else if (pathEl.id == "path444") {
+        d = "m 33.2 -114 s -14.8 1.8 -19.2 3 s -23 8.8 -26 10.8 c 0 0 -13.4 5.4 -30.4 25.4 c 0 0 7.6 -3.4 9.8 -6.2 c 0 0 13.6 -12.6 13.4 -10 c 0 0 12.2 -8.6 11.6 -6.4 c 0 0 24.4 -11.2 22.4 -8 c 0 0 21.6 -4.6 20.6 -2.6 c 0 0 18.8 4.4 16 4.6 c 0 0 -5.8 1.2 0.6 4.8 c 0 0 -3.4 4.4 -8.8 0.4 s -2.4 -1.8 -7.4 -0.8 c 0 0 -2.6 0.8 -7.2 -3.2 c 0 0 -5.6 -4.6 -14.4 -1 c 0 0 -30.6 12.6 -32.6 13.2 c 0 0 -3.6 2.8 -6 6.4 c 0 0 -5.8 4.4 -8.8 5.8 c 0 0 -12.8 11.6 -14 13 c 0 0 -3.4 5.2 -4.2 5.6 c 0 0 6.4 -3.8 8.4 -5.8 c 0 0 14 -10 19.4 -10.8 c 0 0 4.4 -3 5.2 -4.4 c 0 0 14.4 -9.2 18.6 -9.2 c 0 0 9.2 5.2 11.6 -1.8 c 0 0 5.8 -1.8 11.4 -0.6 c 0 0 3.2 -2.6 2.4 -4.8 c 0 0 1.6 -1.8 2.6 2 c 0 0 3.4 3.6 8.2 1.6 c 0 0 4 -0.2 2 2.2 c 0 0 -4.4 3.8 -16.2 4 c 0 0 -12.4 0.6 -28.8 8.2 c 0 0 -29.8 10.4 -39 20.8 c 0 0 -6.4 8.8 -11.8 10 c 0 0 -5.8 0.8 -11.8 8.2 c 0 0 9.8 -5.8 18.8 -5.8 c 0 0 4 -2.4 0.2 1.2 c 0 0 -3.6 7.6 -2 13 c 0 0 -0.6 5.2 -1.4 6.8 c 0 0 -7.8 12.8 -7.8 15.2 s 1.2 12.2 1.6 12.8 s -1 -1.6 2.8 0.8 s 6.6 4 7.4 6.8 s -2 -5.4 -2.2 -7.2 s -4.4 -9 -3.6 -11.4 c 0 0 0.4 1.4 1.8 2.4 c 0 0 -0.6 -0.6 0 -4.2 c 0 0 0.8 -5.2 2.2 -8.4 s 3.4 -7 3.8 -7.8 s 0.4 -6.6 1.8 -4 l 3.4 2.6 s -2.8 -2.6 -0.6 -4.8 c 0 0 -1 -5.6 0.8 -8.2 c 0 0 7 -8.4 8.6 -9.4 s 0.2 -0.6 0.2 -0.6 s 6 -4.2 0.2 -2.6 c 0 0 -4 1.6 -7 1.6 c 0 0 -7.6 2 -3.6 -2.2 s 14 -9.6 17.8 -9.4 l 0.8 1.6 l 11.2 -2.4 l -1.2 0.8 s 0.2 0.4 4 -0.6 s 10 1 11.4 -0.8 s 4.8 -2.8 4.4 -1.4 s -0.6 3.4 -0.6 3.4 s 5 -5.8 4.4 -3.6 s -8.8 7.4 -10.2 13.6 l 10.4 -8.2 l 3.6 -3 s 3.6 2.2 3.8 0.6 s 4.8 -7.4 6 -7.2 s 3.2 -2.6 3 0 s 7.4 8 7.4 8 s 3.2 -1.8 4.6 -0.4 s 5.6 -19.8 5.6 -19.8 l 25 -10.6 l 43.6 -3.4 l -16.999 -6.8 l -61.001 -11.4 z";
       }
-      const d = g.children[0].getAttribute("d");
-      const s = g.getAttribute("fill");
-      if (!s)
-        return;
-      const color = parseColor(s);
-      const polygon = toPolygon(d, sampleRate).scale(1.5).translate(1e3, 400);
-      this.drawFns.push(renderer.compilePolygon(polygon));
-      this.colors.push(color);
+      const polygon = toPolygon(d, sampleRate).scale(3).translate(this.x, this.y);
+      const fill = g.getAttribute("fill");
+      if (fill) {
+        const color = parseColor(fill);
+        this.drawFns.push(renderer.compilePolygon(polygon));
+        this.colors.push(color);
+      }
+      const stroke = g.getAttribute("stroke");
+      if (stroke) {
+        const strokeWidth = g.getAttribute("stroke-width") ?? "1";
+        const strokeGeometry = makeStroke(
+          polygon.paths[0],
+          +strokeWidth * devicePixelRatio,
+          d.endsWith("z") || d.endsWith("Z")
+        );
+        const color = parseColor(stroke);
+        for (const poly of strokeGeometry) {
+          this.drawFns.push(renderer.compilePolygon(poly));
+          this.colors.push(color);
+        }
+      }
     });
     this.active = this.colors.map(() => false);
   }
@@ -13577,7 +13646,7 @@ var Tiger = class {
         (type) => {
           switch (type) {
             case "click": {
-              this.debug = !this.debug;
+              debug = !debug;
               return true;
             }
             case "pointerenter": {
@@ -13598,14 +13667,17 @@ var Tiger = class {
               return false;
           }
         },
-        this.debug
+        debug
       );
     }
   }
 };
 var Text = class {
-  constructor(s) {
+  constructor(s, dx, dy, size) {
     this.s = s;
+    this.dx = dx;
+    this.dy = dy;
+    this.size = size;
     this.active = Array(s.length).fill(false);
     this.prepare();
   }
@@ -13615,9 +13687,9 @@ var Text = class {
   prepare() {
     const polygons = this.drawFns = makeText(
       this.s,
-      100,
-      1200,
-      400,
+      this.dx,
+      this.dy,
+      this.size,
       FontBook.NotoSerif,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
@@ -13645,14 +13717,19 @@ var Text = class {
               return false;
           }
         },
-        true
+        debug
       );
     }
   }
 };
-renderer.register(new Tiger());
-renderer.register(new Text("Hello World!"));
-renderer.register(new SampleRateControl());
+renderer.register(new Tiger(3 * canvas.width / 5, canvas.height / 4));
+renderer.register(new Text("This is rendered on GPU", 100, 500, 120));
+renderer.register(new Text("Click on the image to see the mesh", 100, 600, 80));
+renderer.register(new Text("Click me", 100, 900, 200));
+renderer.register(
+  new Text("to check out the CPU-rendered version", 100, 1100, 80)
+);
+renderer.register(new SampleRateControl(100, 100));
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:
