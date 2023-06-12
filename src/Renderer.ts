@@ -7,14 +7,22 @@ export type Transform = {
   rotation?: number;
   scale?: number;
 };
-export type EventHander = (type: string, x: number, y: number) => void;
-export type Interactive = { polygon: Polygon; eventHandler?: EventHander };
+export type EventHander = (type: string, x: number, y: number) => boolean;
+export type InteractiveObject = { draw: () => void };
+export type InteractiveArea = { polygon: Polygon; eventHandler?: EventHander };
+export type DrawFn<Config = unknown> = (
+  config?: Config,
+  transform?: Transform,
+  eventHandler?: EventHander,
+  debug?: boolean
+) => void;
 
 export class Renderer {
   private gl: WebGL2RenderingContext;
   private basicProgram: WebGLProgram;
-  private active: Interactive | null = null;
-  public interactive: Array<Interactive> = [];
+  private active: InteractiveArea | null = null;
+  private interactiveObjects: Array<InteractiveObject> = [];
+  private interactiveAreas: Array<InteractiveArea> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     document.body.style.margin = "0px";
@@ -59,31 +67,39 @@ export class Renderer {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
       const y = e.offsetY * devicePixelRatio;
-      for (const area of this.interactive) {
+      let dirty = false;
+      for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
-          area.eventHandler(type, x, y);
-          break;
+          dirty = area.eventHandler(type, x, y);
+          return;
         }
       }
+      if (dirty) this.drawScreen();
     });
 
     canvas.addEventListener("pointermove", (e) => {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
       const y = e.offsetY * devicePixelRatio;
-      let active: Interactive | null = null;
-      for (const area of this.interactive) {
+      let active: InteractiveArea | null = null;
+      let dirty = false;
+      for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
-          area.eventHandler(type, x, y);
+          dirty = area.eventHandler(type, x, y);
           active = area;
           break;
         }
       }
       if (this.active != active) {
-        this.active?.eventHandler?.("pointerleave", x, y);
-        active?.eventHandler?.("pointerenter", x, y);
+        if (this.active?.eventHandler?.("pointerleave", x, y)) {
+          dirty = true;
+        }
+        if (active?.eventHandler?.("pointerenter", x, y)) {
+          dirty = true;
+        }
         this.active = active;
       }
+      if (dirty) this.drawScreen();
     });
 
     // new ResizeObserver((entries) => {
@@ -104,7 +120,26 @@ export class Renderer {
   // this.viewportWidthLoc = gl.getUniformLocation(program, "viewportWidth");
   // this.viewportHeightLoc = gl.getUniformLocation(program, "viewportHeight");
 
-  prepare(polygon: Polygon) {
+  public register(obj: InteractiveObject) {
+    this.interactiveObjects.push(obj);
+    requestAnimationFrame(() => {
+      debugger;
+      obj.draw();
+    });
+  }
+
+  public drawScreen() {
+    this.interactiveAreas.length = 0; // clear
+    requestAnimationFrame(() => {
+      for (const obj of this.interactiveObjects) {
+        obj.draw();
+      }
+    });
+  }
+
+  public prepare(
+    polygon: Polygon
+  ): DrawFn<{ color: [number, number, number, number] }> {
     const gl = this.gl;
     const program = this.basicProgram;
     const { vertices, triangles, paths } = polygon.mesh;
@@ -157,19 +192,17 @@ export class Renderer {
     );
     const colorUniformLoc = gl.getUniformLocation(program, "color");
 
-    return (
-      color: [number, number, number, number],
-      transform?: Transform,
-      eventHandler?: EventHander,
-      debug = false
-    ) => {
+    return (config, transform, eventHandler, debug = false) => {
       gl.useProgram(program);
       gl.enable(gl.BLEND);
       gl.bindVertexArray(vao);
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
-      gl.uniform4fv(colorUniformLoc, new Float32Array(color));
+      gl.uniform4fv(
+        colorUniformLoc,
+        new Float32Array(config?.color ?? [0, 0, 0, 0])
+      );
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
@@ -183,7 +216,7 @@ export class Renderer {
           0
         );
       }
-      this.interactive.unshift({ polygon, eventHandler });
+      this.interactiveAreas.unshift({ polygon, eventHandler });
     };
   }
 }

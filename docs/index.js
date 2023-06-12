@@ -74,7 +74,8 @@ var Renderer = class {
   gl;
   basicProgram;
   active = null;
-  interactive = [];
+  interactiveObjects = [];
+  interactiveAreas = [];
   constructor(canvas2) {
     document.body.style.margin = "0px";
     canvas2.width = window.innerWidth * devicePixelRatio;
@@ -117,30 +118,40 @@ var Renderer = class {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
       const y = e.offsetY * devicePixelRatio;
-      for (const area of this.interactive) {
+      let dirty = false;
+      for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
-          area.eventHandler(type, x, y);
-          break;
+          dirty = area.eventHandler(type, x, y);
+          return;
         }
       }
+      if (dirty)
+        this.drawScreen();
     });
     canvas2.addEventListener("pointermove", (e) => {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
       const y = e.offsetY * devicePixelRatio;
       let active = null;
-      for (const area of this.interactive) {
+      let dirty = false;
+      for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
-          area.eventHandler(type, x, y);
+          dirty = area.eventHandler(type, x, y);
           active = area;
           break;
         }
       }
       if (this.active != active) {
-        this.active?.eventHandler?.("pointerleave", x, y);
-        active?.eventHandler?.("pointerenter", x, y);
+        if (this.active?.eventHandler?.("pointerleave", x, y)) {
+          dirty = true;
+        }
+        if (active?.eventHandler?.("pointerenter", x, y)) {
+          dirty = true;
+        }
         this.active = active;
       }
+      if (dirty)
+        this.drawScreen();
     });
   }
   // test() {
@@ -149,6 +160,21 @@ var Renderer = class {
   // }
   // this.viewportWidthLoc = gl.getUniformLocation(program, "viewportWidth");
   // this.viewportHeightLoc = gl.getUniformLocation(program, "viewportHeight");
+  register(obj) {
+    this.interactiveObjects.push(obj);
+    requestAnimationFrame(() => {
+      debugger;
+      obj.draw();
+    });
+  }
+  drawScreen() {
+    this.interactiveAreas.length = 0;
+    requestAnimationFrame(() => {
+      for (const obj of this.interactiveObjects) {
+        obj.draw();
+      }
+    });
+  }
   prepare(polygon) {
     const gl = this.gl;
     const program = this.basicProgram;
@@ -194,14 +220,17 @@ var Renderer = class {
       "viewportHeight"
     );
     const colorUniformLoc = gl.getUniformLocation(program, "color");
-    return (color, transform, eventHandler, debug = false) => {
+    return (config, transform, eventHandler, debug = false) => {
       gl.useProgram(program);
       gl.enable(gl.BLEND);
       gl.bindVertexArray(vao);
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
-      gl.uniform4fv(colorUniformLoc, new Float32Array(color));
+      gl.uniform4fv(
+        colorUniformLoc,
+        new Float32Array(config?.color ?? [0, 0, 0, 0])
+      );
       if (debug) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
@@ -215,7 +244,7 @@ var Renderer = class {
           0
         );
       }
-      this.interactive.unshift({ polygon, eventHandler });
+      this.interactiveAreas.unshift({ polygon, eventHandler });
     };
   }
 };
@@ -4767,7 +4796,7 @@ function calcCFFSubroutineBias(subrs) {
 }
 function parseCFFIndex(data, start, conversionFn) {
   var offsets = [];
-  var objects2 = [];
+  var objects = [];
   var count = parse.getCard16(data, start);
   var objectOffset;
   var endOffset;
@@ -4788,9 +4817,9 @@ function parseCFFIndex(data, start, conversionFn) {
     if (conversionFn) {
       value = conversionFn(value);
     }
-    objects2.push(value);
+    objects.push(value);
   }
-  return { objects: objects2, startOffset: start, endOffset };
+  return { objects, startOffset: start, endOffset };
 }
 function parseCFFIndexLowMemory(data, start) {
   var offsets = [];
@@ -13369,6 +13398,21 @@ function makeText(text, dx, dy, size, font, samplingRate) {
   return polygons;
 }
 
+// demo/util.ts
+function parseColor(s) {
+  if (s.length == 7) {
+    const r = parseInt(s.slice(1, 3), 16) / 255;
+    const g = parseInt(s.slice(3, 5), 16) / 255;
+    const b = parseInt(s.slice(5, 7), 16) / 255;
+    return [r, g, b, 1];
+  } else {
+    const r = parseInt(s.slice(1, 2), 16) / 15;
+    const g = parseInt(s.slice(2, 3), 16) / 15;
+    const b = parseInt(s.slice(3, 4), 16) / 15;
+    return [r, g, b, 1];
+  }
+}
+
 // demo/index.ts
 var canvas = document.querySelector("#test");
 var renderer = new Renderer(canvas);
@@ -13378,13 +13422,6 @@ var tigerSvg = new DOMParser().parseFromString(
   )).text(),
   "text/xml"
 );
-var objects = [];
-function drawScreen() {
-  renderer.interactive.length = 0;
-  for (const obj of objects) {
-    obj.draw();
-  }
-}
 var Tiger = class {
   debug = false;
   colors = [];
@@ -13417,22 +13454,30 @@ var Tiger = class {
   draw() {
     for (let i = 0; i < this.drawFns.length; ++i) {
       this.drawFns[i](
-        this.active[i] ? [1, 0, 0, 1] : this.colors[i],
+        { color: this.active[i] ? [1, 0, 0, 1] : this.colors[i] },
         void 0,
         (type) => {
-          if (type == "click") {
-            this.debug = !this.debug;
-            drawScreen();
-          } else if (type == "pointerenter") {
-            if (!this.active[i]) {
-              this.active[i] = true;
-              drawScreen();
+          switch (type) {
+            case "click": {
+              this.debug = !this.debug;
+              return true;
             }
-          } else if (type == "pointerleave") {
-            if (this.active[i]) {
-              this.active[i] = false;
-              drawScreen;
+            case "pointerenter": {
+              if (!this.active[i]) {
+                this.active[i] = true;
+                return true;
+              }
+              return false;
             }
+            case "pointerleave": {
+              if (this.active[i]) {
+                this.active[i] = false;
+                return true;
+              }
+              return false;
+            }
+            default:
+              return false;
           }
         },
         this.debug
@@ -13461,38 +13506,33 @@ var Text = class {
   draw() {
     for (const [i, draw2] of this.drawFns.entries()) {
       draw2(
-        this.active[i] ? [1, 0, 0, 1] : [0, 0, 0, 1],
+        { color: this.active[i] ? [1, 0, 0, 1] : [0, 0, 0, 1] },
         void 0,
         (type) => {
-          if (type == "pointerenter") {
-            this.active[i] = true;
-          } else if (type == "pointerleave") {
-            this.active[i] = false;
-          } else if (type == "click") {
-            location.href = "./cpu";
+          switch (type) {
+            case "pointerenter": {
+              this.active[i] = true;
+              return true;
+            }
+            case "pointerleave": {
+              this.active[i] = false;
+              return true;
+            }
+            case "click": {
+              location.href = "./cpu";
+              return true;
+            }
+            default:
+              return false;
           }
-          drawScreen();
         },
         true
       );
     }
   }
 };
-objects.push(new Tiger(), new Text("Hello world"));
-drawScreen();
-function parseColor(s) {
-  if (s.length == 7) {
-    const r = parseInt(s.slice(1, 3), 16) / 255;
-    const g = parseInt(s.slice(3, 5), 16) / 255;
-    const b = parseInt(s.slice(5, 7), 16) / 255;
-    return [r, g, b, 1];
-  } else {
-    const r = parseInt(s.slice(1, 2), 16) / 15;
-    const g = parseInt(s.slice(2, 3), 16) / 15;
-    const b = parseInt(s.slice(3, 4), 16) / 15;
-    return [r, g, b, 1];
-  }
-}
+renderer.register(new Tiger());
+renderer.register(new Text("Hello World!"));
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:

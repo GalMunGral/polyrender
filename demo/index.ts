@@ -1,6 +1,7 @@
-import { EventHander, Renderer, Transform } from "polyrender/Renderer";
+import { DrawFn, EventHander, Renderer, Transform } from "polyrender/Renderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
+import { parseColor } from "./util";
 
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -14,27 +15,11 @@ const tigerSvg = new DOMParser().parseFromString(
   "text/xml"
 );
 
-const objects: Array<{ draw: () => void }> = [];
-function drawScreen() {
-  // TODO (important): integrate this into renderer
-  renderer.interactive.length = 0;
-  for (const obj of objects) {
-    obj.draw();
-  }
-}
-
 class Tiger {
   private debug = false;
   private colors: Array<[number, number, number, number]> = [];
   private active: Array<boolean> = [];
-  private drawFns: Array<
-    (
-      color: [number, number, number, number],
-      transform?: Transform,
-      eventHandler?: EventHander,
-      debug?: boolean
-    ) => void
-  > = [];
+  private drawFns: Array<DrawFn> = [];
 
   constructor() {
     tigerSvg.children[0].children[0].querySelectorAll("g").forEach((g) => {
@@ -64,22 +49,30 @@ class Tiger {
   public draw() {
     for (let i = 0; i < this.drawFns.length; ++i) {
       this.drawFns[i](
-        this.active[i] ? [1, 0, 0, 1] : this.colors[i],
+        { color: this.active[i] ? [1, 0, 0, 1] : this.colors[i] },
         undefined,
         (type) => {
-          if (type == "click") {
-            this.debug = !this.debug;
-            drawScreen();
-          } else if (type == "pointerenter") {
-            if (!this.active[i]) {
-              this.active[i] = true;
-              drawScreen();
+          switch (type) {
+            case "click": {
+              this.debug = !this.debug;
+              return true;
             }
-          } else if (type == "pointerleave") {
-            if (this.active[i]) {
-              this.active[i] = false;
-              drawScreen;
+            case "pointerenter": {
+              if (!this.active[i]) {
+                this.active[i] = true;
+                return true;
+              }
+              return false;
             }
+            case "pointerleave": {
+              if (this.active[i]) {
+                this.active[i] = false;
+                return true;
+              }
+              return false;
+            }
+            default:
+              return false;
           }
         },
         this.debug
@@ -91,14 +84,7 @@ class Tiger {
 class Text {
   private fontSize = 400;
   private active: Array<boolean> = [];
-  private drawFns: Array<
-    (
-      color: [number, number, number, number],
-      transform?: Transform,
-      eventHandler?: EventHander,
-      debug?: boolean
-    ) => void
-  > = [];
+  private drawFns: Array<DrawFn> = [];
 
   constructor(s: string) {
     const polygons = makeText(
@@ -118,17 +104,25 @@ class Text {
   public draw() {
     for (const [i, draw] of this.drawFns.entries()) {
       draw(
-        this.active[i] ? [1, 0, 0, 1] : [0, 0, 0, 1],
+        { color: this.active[i] ? [1, 0, 0, 1] : [0, 0, 0, 1] },
         undefined,
         (type) => {
-          if (type == "pointerenter") {
-            this.active[i] = true;
-          } else if (type == "pointerleave") {
-            this.active[i] = false;
-          } else if (type == "click") {
-            location.href = "./cpu";
+          switch (type) {
+            case "pointerenter": {
+              this.active[i] = true;
+              return true;
+            }
+            case "pointerleave": {
+              this.active[i] = false;
+              return true;
+            }
+            case "click": {
+              location.href = "./cpu";
+              return true;
+            }
+            default:
+              return false;
           }
-          drawScreen();
         },
         true
       );
@@ -136,19 +130,5 @@ class Text {
   }
 }
 
-objects.push(new Tiger(), new Text("Hello world"));
-drawScreen();
-
-function parseColor(s: string): [number, number, number, number] {
-  if (s.length == 7) {
-    const r = parseInt(s.slice(1, 3), 16) / 255;
-    const g = parseInt(s.slice(3, 5), 16) / 255;
-    const b = parseInt(s.slice(5, 7), 16) / 255;
-    return [r, g, b, 1];
-  } else {
-    const r = parseInt(s.slice(1, 2), 16) / 15;
-    const g = parseInt(s.slice(2, 3), 16) / 15;
-    const b = parseInt(s.slice(3, 4), 16) / 15;
-    return [r, g, b, 1];
-  }
-}
+renderer.register(new Tiger());
+renderer.register(new Text("Hello World!"));

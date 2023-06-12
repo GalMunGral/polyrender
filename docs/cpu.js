@@ -1013,24 +1013,21 @@ var Tiger = class {
       ctx.putImageData(imageData, 0, 0);
       requestAnimationFrame(draw);
     });
-    const tasks = [];
     for (let i = 0; i < this.polygons.length; ++i) {
       const [r, g, b, a] = this.colors[i];
-      tasks.push(
-        this.polygons[i].traverseAsync(async (x, y) => {
-          const i2 = (y * canvas.width + x) * 4;
-          imageData.data[i2] = r;
-          imageData.data[i2 + 1] = g;
-          imageData.data[i2 + 2] = b;
-          imageData.data[i2 + 3] = a;
-          return new Promise((resolve) => {
-            requestIdleCallback(() => resolve());
-          });
-        })
-      );
+      if (a == 0 || r == 255 && g == 255 && b == 255)
+        continue;
+      await this.polygons[i].traverseAsync(async (x, y) => {
+        const i2 = (y * canvas.width + x) * 4;
+        imageData.data[i2] = r;
+        imageData.data[i2 + 1] = g;
+        imageData.data[i2 + 2] = b;
+        imageData.data[i2 + 3] = a;
+        return new Promise((resolve) => {
+          setTimeout(() => resolve());
+        });
+      });
     }
-    await Promise.all(tasks);
-    cancelAnimationFrame(handle);
   }
 };
 var tiger = new Tiger();
