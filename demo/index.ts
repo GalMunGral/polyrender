@@ -2,6 +2,10 @@ import { DrawFn, EventHander, Renderer, Transform } from "polyrender/Renderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
 import { parseColor } from "./util";
+import { Polygon } from "polyrender/Polygon";
+import { Font } from "opentype.js";
+import { CyclicList } from "polyrender/CyclicList";
+import { Vector } from "polyrender/Vector";
 
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
@@ -15,6 +19,125 @@ const tigerSvg = new DOMParser().parseFromString(
   "text/xml"
 );
 
+let sampleRate = 5;
+
+class SampleRateControl {
+  private displayDrawFns: Array<DrawFn>;
+  private increaseBtnDrawFn: DrawFn;
+  private increateBtnTextDrawFns: Array<DrawFn>;
+  private decreaseBtnDrawFn: DrawFn;
+  private decreateBtnTextDrawFns: Array<DrawFn>;
+
+  private increaseBtnHover = false;
+  private decreaseBtnHover = false;
+
+  constructor() {
+    this.prepare();
+  }
+
+  public prepare() {
+    console.log("prepare control");
+    this.displayDrawFns = makeText(
+      `Sample Rate: ${sampleRate}`,
+      100,
+      100,
+      80,
+      FontBook.NotoSerif,
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
+    this.increaseBtnDrawFn = renderer.compilePolygon(
+      new Polygon([
+        new CyclicList([
+          new Vector(80, 150),
+          new Vector(220, 150),
+          new Vector(220, 300),
+          new Vector(80, 300),
+        ]),
+      ])
+    );
+    this.increateBtnTextDrawFns = makeText(
+      "+1",
+      100,
+      250,
+      80,
+      FontBook.NotoSerif,
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
+    this.decreaseBtnDrawFn = renderer.compilePolygon(
+      new Polygon([
+        new CyclicList([
+          new Vector(280, 150),
+          new Vector(420, 150),
+          new Vector(420, 300),
+          new Vector(280, 300),
+        ]),
+      ])
+    );
+    this.decreateBtnTextDrawFns = makeText(
+      "-1",
+      320,
+      250,
+      80,
+      FontBook.NotoSerif,
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
+  }
+
+  public draw() {
+    this.displayDrawFns.forEach((draw) => draw({ color: [0, 0, 0, 1] }));
+
+    this.increaseBtnDrawFn(
+      { color: [1, 0, 0, this.increaseBtnHover ? 0.6 : 0.4] },
+      undefined,
+      (type) => {
+        if (type == "click") {
+          sampleRate = Math.min(10, sampleRate + 1);
+          renderer.prepare();
+          return true;
+        }
+        if (type == "pointerenter") {
+          this.increaseBtnHover = true;
+          return true;
+        }
+        if (type == "pointerleave") {
+          this.increaseBtnHover = false;
+          return true;
+        }
+        return false;
+      }
+    );
+
+    this.increateBtnTextDrawFns.forEach((draw) =>
+      draw({ color: [0, 0, 0, 1] })
+    );
+
+    this.decreaseBtnDrawFn(
+      { color: [0, 0, 1, this.decreaseBtnHover ? 0.6 : 0.4] },
+      undefined,
+      (type) => {
+        if (type == "click") {
+          sampleRate = Math.max(1, sampleRate - 1);
+          renderer.prepare();
+          return true;
+        }
+        if (type == "pointerenter") {
+          this.decreaseBtnHover = true;
+          return true;
+        }
+        if (type == "pointerleave") {
+          this.decreaseBtnHover = false;
+          return true;
+        }
+        return false;
+      }
+    );
+
+    this.decreateBtnTextDrawFns.forEach((draw) =>
+      draw({ color: [0, 0, 0, 1] })
+    );
+  }
+}
+
 class Tiger {
   private debug = false;
   private colors: Array<[number, number, number, number]> = [];
@@ -22,6 +145,12 @@ class Tiger {
   private drawFns: Array<DrawFn> = [];
 
   constructor() {
+    this.prepare();
+  }
+
+  public prepare() {
+    this.drawFns.length = 0;
+    this.colors.length = 0;
     tigerSvg.children[0].children[0].querySelectorAll("g").forEach((g) => {
       // TODO: how to handle self-intersecting polygons?
       if (g.children[0].id == "path464") {
@@ -39,8 +168,8 @@ class Tiger {
       const s = g.getAttribute("fill");
       if (!s) return;
       const color = parseColor(s);
-      const polygon = toPolygon(d).scale(1.5).translate(1000, 400);
-      this.drawFns.push(renderer.prepare(polygon));
+      const polygon = toPolygon(d, sampleRate).scale(1.5).translate(1000, 400);
+      this.drawFns.push(renderer.compilePolygon(polygon));
       this.colors.push(color);
     });
     this.active = this.colors.map(() => false);
@@ -86,19 +215,20 @@ class Text {
   private active: Array<boolean> = [];
   private drawFns: Array<DrawFn> = [];
 
-  constructor(s: string) {
-    const polygons = makeText(
-      s,
+  constructor(private s: string) {
+    this.active = Array(s.length).fill(false);
+    this.prepare();
+  }
+
+  public prepare() {
+    const polygons = (this.drawFns = makeText(
+      this.s,
       100,
       1200,
       400,
       FontBook.NotoSerif,
-      1000 / this.fontSize
-    );
-    for (const polygon of polygons) {
-      this.drawFns.push(renderer.prepare(polygon));
-    }
-    this.active = Array(s.length).fill(false);
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon)));
   }
 
   public draw() {
@@ -132,3 +262,4 @@ class Text {
 
 renderer.register(new Tiger());
 renderer.register(new Text("Hello World!"));
+renderer.register(new SampleRateControl());

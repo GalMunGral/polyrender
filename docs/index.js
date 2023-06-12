@@ -122,7 +122,7 @@ var Renderer = class {
       for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
           dirty = area.eventHandler(type, x, y);
-          return;
+          break;
         }
       }
       if (dirty)
@@ -163,9 +163,13 @@ var Renderer = class {
   register(obj) {
     this.interactiveObjects.push(obj);
     requestAnimationFrame(() => {
-      debugger;
       obj.draw();
     });
+  }
+  prepare() {
+    for (const obj of this.interactiveObjects) {
+      obj.prepare();
+    }
   }
   drawScreen() {
     this.interactiveAreas.length = 0;
@@ -175,7 +179,7 @@ var Renderer = class {
       }
     });
   }
-  prepare(polygon) {
+  compilePolygon(polygon) {
     const gl = this.gl;
     const program = this.basicProgram;
     const { vertices, triangles, paths } = polygon.mesh;
@@ -13422,12 +13426,126 @@ var tigerSvg = new DOMParser().parseFromString(
   )).text(),
   "text/xml"
 );
+var sampleRate = 5;
+var SampleRateControl = class {
+  displayDrawFns;
+  increaseBtnDrawFn;
+  increateBtnTextDrawFns;
+  decreaseBtnDrawFn;
+  decreateBtnTextDrawFns;
+  increaseBtnHover = false;
+  decreaseBtnHover = false;
+  constructor() {
+    this.prepare();
+  }
+  prepare() {
+    console.log("prepare control");
+    this.displayDrawFns = makeText(
+      `Sample Rate: ${sampleRate}`,
+      100,
+      100,
+      80,
+      FontBook.NotoSerif,
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
+    this.increaseBtnDrawFn = renderer.compilePolygon(
+      new Polygon([
+        new CyclicList([
+          new Vector(80, 150),
+          new Vector(220, 150),
+          new Vector(220, 300),
+          new Vector(80, 300)
+        ])
+      ])
+    );
+    this.increateBtnTextDrawFns = makeText(
+      "+1",
+      100,
+      250,
+      80,
+      FontBook.NotoSerif,
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
+    this.decreaseBtnDrawFn = renderer.compilePolygon(
+      new Polygon([
+        new CyclicList([
+          new Vector(280, 150),
+          new Vector(420, 150),
+          new Vector(420, 300),
+          new Vector(280, 300)
+        ])
+      ])
+    );
+    this.decreateBtnTextDrawFns = makeText(
+      "-1",
+      320,
+      250,
+      80,
+      FontBook.NotoSerif,
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
+  }
+  draw() {
+    this.displayDrawFns.forEach((draw2) => draw2({ color: [0, 0, 0, 1] }));
+    this.increaseBtnDrawFn(
+      { color: [1, 0, 0, this.increaseBtnHover ? 0.6 : 0.4] },
+      void 0,
+      (type) => {
+        if (type == "click") {
+          sampleRate = Math.min(10, sampleRate + 1);
+          renderer.prepare();
+          return true;
+        }
+        if (type == "pointerenter") {
+          this.increaseBtnHover = true;
+          return true;
+        }
+        if (type == "pointerleave") {
+          this.increaseBtnHover = false;
+          return true;
+        }
+        return false;
+      }
+    );
+    this.increateBtnTextDrawFns.forEach(
+      (draw2) => draw2({ color: [0, 0, 0, 1] })
+    );
+    this.decreaseBtnDrawFn(
+      { color: [0, 0, 1, this.decreaseBtnHover ? 0.6 : 0.4] },
+      void 0,
+      (type) => {
+        if (type == "click") {
+          sampleRate = Math.max(1, sampleRate - 1);
+          renderer.prepare();
+          return true;
+        }
+        if (type == "pointerenter") {
+          this.decreaseBtnHover = true;
+          return true;
+        }
+        if (type == "pointerleave") {
+          this.decreaseBtnHover = false;
+          return true;
+        }
+        return false;
+      }
+    );
+    this.decreateBtnTextDrawFns.forEach(
+      (draw2) => draw2({ color: [0, 0, 0, 1] })
+    );
+  }
+};
 var Tiger = class {
   debug = false;
   colors = [];
   active = [];
   drawFns = [];
   constructor() {
+    this.prepare();
+  }
+  prepare() {
+    this.drawFns.length = 0;
+    this.colors.length = 0;
     tigerSvg.children[0].children[0].querySelectorAll("g").forEach((g) => {
       if (g.children[0].id == "path464") {
         g.children[0].setAttribute(
@@ -13445,8 +13563,8 @@ var Tiger = class {
       if (!s)
         return;
       const color = parseColor(s);
-      const polygon = toPolygon(d).scale(1.5).translate(1e3, 400);
-      this.drawFns.push(renderer.prepare(polygon));
+      const polygon = toPolygon(d, sampleRate).scale(1.5).translate(1e3, 400);
+      this.drawFns.push(renderer.compilePolygon(polygon));
       this.colors.push(color);
     });
     this.active = this.colors.map(() => false);
@@ -13486,22 +13604,23 @@ var Tiger = class {
   }
 };
 var Text = class {
+  constructor(s) {
+    this.s = s;
+    this.active = Array(s.length).fill(false);
+    this.prepare();
+  }
   fontSize = 400;
   active = [];
   drawFns = [];
-  constructor(s) {
-    const polygons = makeText(
-      s,
+  prepare() {
+    const polygons = this.drawFns = makeText(
+      this.s,
       100,
       1200,
       400,
       FontBook.NotoSerif,
-      1e3 / this.fontSize
-    );
-    for (const polygon of polygons) {
-      this.drawFns.push(renderer.prepare(polygon));
-    }
-    this.active = Array(s.length).fill(false);
+      sampleRate
+    ).map((polygon) => renderer.compilePolygon(polygon));
   }
   draw() {
     for (const [i, draw2] of this.drawFns.entries()) {
@@ -13533,6 +13652,7 @@ var Text = class {
 };
 renderer.register(new Tiger());
 renderer.register(new Text("Hello World!"));
+renderer.register(new SampleRateControl());
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:

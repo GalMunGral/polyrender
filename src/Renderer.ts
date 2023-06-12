@@ -8,7 +8,7 @@ export type Transform = {
   scale?: number;
 };
 export type EventHander = (type: string, x: number, y: number) => boolean;
-export type InteractiveObject = { draw: () => void };
+export type InteractiveObject = { prepare: () => void; draw: () => void };
 export type InteractiveArea = { polygon: Polygon; eventHandler?: EventHander };
 export type DrawFn<Config = unknown> = (
   config?: Config,
@@ -71,7 +71,7 @@ export class Renderer {
       for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
           dirty = area.eventHandler(type, x, y);
-          return;
+          break;
         }
       }
       if (dirty) this.drawScreen();
@@ -123,9 +123,14 @@ export class Renderer {
   public register(obj: InteractiveObject) {
     this.interactiveObjects.push(obj);
     requestAnimationFrame(() => {
-      debugger;
       obj.draw();
     });
+  }
+
+  public prepare() {
+    for (const obj of this.interactiveObjects) {
+      obj.prepare();
+    }
   }
 
   public drawScreen() {
@@ -137,7 +142,7 @@ export class Renderer {
     });
   }
 
-  public prepare(
+  public compilePolygon(
     polygon: Polygon
   ): DrawFn<{ color: [number, number, number, number] }> {
     const gl = this.gl;
