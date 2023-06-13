@@ -99,7 +99,7 @@ var Renderer = class {
           0,
           1.0
         );
-        gl_PointSize = 4.0;
+        gl_PointSize = 2.0;
       }
     `,
       `#version 300 es
