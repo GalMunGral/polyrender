@@ -1092,9 +1092,6 @@ var Tiger = class {
     const imageData = new ImageData(canvas.width, canvas.height);
     function* pixels(that2) {
       for (let i = 0; i < that2.polygons.length; ++i) {
-        const [r, g, b, a] = that2.colors[i];
-        if (a == 0 || r == 255 && g == 255 && b == 255)
-          continue;
         const it2 = that2.polygons[i].traverseAsync();
         while (true) {
           const { done, value } = it2.next();
