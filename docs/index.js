@@ -236,7 +236,7 @@ var Renderer = class {
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
       if (debug2) {
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);
@@ -691,7 +691,7 @@ var Polygon = class {
       active.sort((e1, e2) => e1.x - e2.x);
     } while (active.length || i < this.visibleEdges.length);
   }
-  async traverseAsync(fn) {
+  *traverseAsync() {
     if (!this.visibleEdges.length)
       return;
     let y = Math.ceil(this.visibleEdges[0].y1) - 1;
@@ -704,7 +704,7 @@ var Polygon = class {
       for (let i2 = 0, winding = 0; i2 < active.length; ++i2) {
         if (winding) {
           for (let x = Math.ceil(active[i2 - 1].x); x < active[i2].x; ++x) {
-            await fn(x, y);
+            yield new Vector(x, y);
           }
         }
         winding += active[i2].reversed ? -1 : 1;
@@ -13377,7 +13377,8 @@ function parseBuffer(buffer, opt) {
 var FontBook = {
   NotoSans: parseBuffer(await (await fetch("./NotoSans.ttf")).arrayBuffer()),
   NotoSerif: parseBuffer(await (await fetch("./NotoSerif.ttf")).arrayBuffer()),
-  Zapfino: parseBuffer(await (await fetch("./Zapfino.ttf")).arrayBuffer())
+  Zapfino: parseBuffer(await (await fetch("./Zapfino.ttf")).arrayBuffer()),
+  Vollkorn: parseBuffer(await (await fetch("./VollkornSC-Bold.ttf")).arrayBuffer())
 };
 function makeText(text, dx, dy, size, font, samplingRate) {
   const polygons = [];
@@ -13520,30 +13521,30 @@ var SampleRateControl = class {
   prepare() {
     this.displayDrawFns = makeText(
       `Sample Rate: ${sampleRate}`,
-      100,
-      100,
+      this.x + 400,
+      this.y + 50,
       80,
-      FontBook.NotoSerif,
+      FontBook.Vollkorn,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.increaseBtnDrawFn = renderer.compilePolygon(
-      sampleCircle(64).scale(80).translate(this.x + 100, this.y + 100)
+      sampleCircle(64).scale(80).translate(this.x, this.y)
     );
     this.increateBtnTextDrawFns = makeText(
       "+1",
-      this.x + 100 - FontBook.NotoSans.getAdvanceWidth("+1") / 2,
-      this.y + 100 + 20,
+      this.x - FontBook.NotoSans.getAdvanceWidth("+1") / 2,
+      this.y + 20,
       80,
       FontBook.NotoSans,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.decreaseBtnDrawFn = renderer.compilePolygon(
-      sampleCircle(64).scale(80).translate(this.x + 300, this.y + 100)
+      sampleCircle(64).scale(80).translate(this.x + 200, this.y)
     );
     this.decreateBtnTextDrawFns = makeText(
       "-1",
-      this.x + 300 - FontBook.NotoSans.getAdvanceWidth("-1") / 2,
-      this.y + 100 + 20,
+      this.x + 200 - FontBook.NotoSans.getAdvanceWidth("-1") / 2,
+      this.y + 20,
       80,
       FontBook.NotoSans,
       sampleRate
@@ -13706,10 +13707,6 @@ var Tiger = class {
         void 0,
         (type) => {
           switch (type) {
-            case "click": {
-              debug = !debug;
-              return true;
-            }
             case "pointerenter": {
               if (!this.active[i]) {
                 this.active[i] = true;
@@ -13734,12 +13731,13 @@ var Tiger = class {
   }
 };
 var Text = class {
-  constructor(s, dx, dy, size, font = FontBook.NotoSerif) {
+  constructor(s, dx, dy, size, font = FontBook.NotoSerif, onClick) {
     this.s = s;
     this.dx = dx;
     this.dy = dy;
     this.size = size;
     this.font = font;
+    this.onClick = onClick;
     this.active = Array(s.length).fill(false);
     this.prepare();
   }
@@ -13772,8 +13770,7 @@ var Text = class {
               return true;
             }
             case "click": {
-              location.href = "./cpu";
-              return true;
+              return this.onClick?.() ?? false;
             }
             default:
               return false;
@@ -13785,13 +13782,22 @@ var Text = class {
   }
 };
 renderer.register(new Tiger(3 * canvas.width / 5, canvas.height / 4));
-renderer.register(new Text("This is rendered on GPU", 100, 500, 120));
-renderer.register(new Text("Click on the image to see the mesh", 100, 600, 80));
-renderer.register(new Text("Click on the text", 100, 900, 150));
 renderer.register(
-  new Text("to check out the CPU-rendered version", 100, 1e3, 80)
+  new Text("This is rendered on GPU", 100, 500, 80, FontBook.Vollkorn)
 );
-renderer.register(new SampleRateControl(100, 100));
+renderer.register(
+  new Text("View triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
+    debug = !debug;
+    return true;
+  })
+);
+renderer.register(
+  new Text("CPU-rendered version", 100, 1e3, 100, FontBook.Vollkorn, () => {
+    location.href = "./cpu";
+    return false;
+  })
+);
+renderer.register(new SampleRateControl(200, 200));
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:

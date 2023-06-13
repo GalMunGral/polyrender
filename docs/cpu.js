@@ -464,7 +464,7 @@ var Polygon = class {
       active.sort((e1, e2) => e1.x - e2.x);
     } while (active.length || i < this.visibleEdges.length);
   }
-  async traverseAsync(fn) {
+  *traverseAsync() {
     if (!this.visibleEdges.length)
       return;
     let y = Math.ceil(this.visibleEdges[0].y1) - 1;
@@ -477,7 +477,7 @@ var Polygon = class {
       for (let i2 = 0, winding = 0; i2 < active.length; ++i2) {
         if (winding) {
           for (let x = Math.ceil(active[i2 - 1].x); x < active[i2].x; ++x) {
-            await fn(x, y);
+            yield new Vector(x, y);
           }
         }
         winding += active[i2].reversed ? -1 : 1;
@@ -1038,6 +1038,7 @@ var tigerSvg = new DOMParser().parseFromString(
 var Tiger = class {
   colors = [];
   polygons = [];
+  isDrawing = false;
   constructor() {
     this.prepare();
   }
@@ -1047,7 +1048,7 @@ var Tiger = class {
     tigerSvg.children[0].children[0].querySelectorAll("g").forEach((g) => {
       const pathEl = g.children[0];
       let d = pathEl.getAttribute("d");
-      const polygon = toPolygon(d, 64).scale(canvas.height / 600).translate(3 * canvas.width / 5, canvas.height / 4);
+      const polygon = toPolygon(d, 64).scale(3).translate(3 * canvas.width / 5, canvas.height / 4);
       const fill = g.getAttribute("fill");
       if (fill) {
         const color = parseColor(fill).map((x) => Math.round(x * 255));
@@ -1084,28 +1085,48 @@ var Tiger = class {
     }
     ctx.putImageData(imageData, 0, 0);
   }
-  async drawWithDelay() {
+  drawWithDelay() {
+    if (this.isDrawing)
+      return;
+    this.isDrawing = true;
     const imageData = new ImageData(canvas.width, canvas.height);
-    const handle = requestAnimationFrame(function draw() {
-      ctx.putImageData(imageData, 0, 0);
-      requestAnimationFrame(draw);
-    });
-    for (let i = 0; i < this.polygons.length; ++i) {
-      const [r, g, b, a] = this.colors[i];
-      if (a == 0 || r == 255 && g == 255 && b == 255)
-        continue;
-      await this.polygons[i].traverseAsync(async (x, y) => {
-        const i2 = (y * canvas.width + x) * 4;
-        imageData.data[i2] = r;
-        imageData.data[i2 + 1] = g;
-        imageData.data[i2 + 2] = b;
-        imageData.data[i2 + 3] = a;
-        return new Promise((resolve) => {
-          requestIdleCallback(() => resolve());
-        });
-      });
+    function* pixels(that2) {
+      for (let i = 0; i < that2.polygons.length; ++i) {
+        const [r, g, b, a] = that2.colors[i];
+        if (a == 0 || r == 255 && g == 255 && b == 255)
+          continue;
+        const it2 = that2.polygons[i].traverseAsync();
+        while (true) {
+          const { done, value } = it2.next();
+          if (done)
+            break;
+          yield { color: that2.colors[i], point: value };
+        }
+      }
     }
-    cancelAnimationFrame(handle);
+    const it = pixels(this);
+    const that = this;
+    (function drawChunkOfPixels() {
+      let n = 1e3;
+      while (n--) {
+        const { done, value } = it.next();
+        if (done) {
+          that.isDrawing = false;
+          return;
+        }
+        const {
+          color: [r, g, b, a],
+          point: { x, y }
+        } = value;
+        const i = (y * canvas.width + x) * 4;
+        imageData.data[i] = r;
+        imageData.data[i + 1] = g;
+        imageData.data[i + 2] = b;
+        imageData.data[i + 3] = a;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      requestAnimationFrame(drawChunkOfPixels);
+    })();
   }
 };
 var tiger = new Tiger();

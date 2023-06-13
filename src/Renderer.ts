@@ -201,7 +201,7 @@ export class Renderer {
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
       if (debug) {
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);

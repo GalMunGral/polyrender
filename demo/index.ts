@@ -43,21 +43,19 @@ class SampleRateControl {
   public prepare() {
     this.displayDrawFns = makeText(
       `Sample Rate: ${sampleRate}`,
-      100,
-      100,
+      this.x + 400,
+      this.y + 50,
       80,
-      FontBook.NotoSerif,
+      FontBook.Vollkorn,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.increaseBtnDrawFn = renderer.compilePolygon(
-      sampleCircle(64)
-        .scale(80)
-        .translate(this.x + 100, this.y + 100)
+      sampleCircle(64).scale(80).translate(this.x, this.y)
     );
     this.increateBtnTextDrawFns = makeText(
       "+1",
-      this.x + 100 - FontBook.NotoSans.getAdvanceWidth("+1") / 2,
-      this.y + 100 + 20,
+      this.x - FontBook.NotoSans.getAdvanceWidth("+1") / 2,
+      this.y + 20,
       80,
       FontBook.NotoSans,
       sampleRate
@@ -65,12 +63,12 @@ class SampleRateControl {
     this.decreaseBtnDrawFn = renderer.compilePolygon(
       sampleCircle(64)
         .scale(80)
-        .translate(this.x + 300, this.y + 100)
+        .translate(this.x + 200, this.y)
     );
     this.decreateBtnTextDrawFns = makeText(
       "-1",
-      this.x + 300 - FontBook.NotoSans.getAdvanceWidth("-1") / 2,
-      this.y + 100 + 20,
+      this.x + 200 - FontBook.NotoSans.getAdvanceWidth("-1") / 2,
+      this.y + 20,
       80,
       FontBook.NotoSans,
       sampleRate
@@ -252,10 +250,6 @@ class Tiger {
         undefined,
         (type) => {
           switch (type) {
-            case "click": {
-              debug = !debug;
-              return true;
-            }
             case "pointerenter": {
               if (!this.active[i]) {
                 this.active[i] = true;
@@ -290,7 +284,8 @@ class Text {
     private dx: number,
     private dy: number,
     private size: number,
-    private font: Font = FontBook.NotoSerif
+    private font: Font = FontBook.NotoSerif,
+    private onClick?: () => boolean
   ) {
     this.active = Array(s.length).fill(false);
     this.prepare();
@@ -323,8 +318,7 @@ class Text {
               return true;
             }
             case "click": {
-              location.href = "./cpu";
-              return true;
+              return this.onClick?.() ?? false;
             }
             default:
               return false;
@@ -337,10 +331,20 @@ class Text {
 }
 
 renderer.register(new Tiger((3 * canvas.width) / 5, canvas.height / 4));
-renderer.register(new Text("This is rendered on GPU", 100, 500, 120));
-renderer.register(new Text("Click on the image to see the mesh", 100, 600, 80));
-renderer.register(new Text("Click on the text", 100, 900, 150));
 renderer.register(
-  new Text("to check out the CPU-rendered version", 100, 1000, 80)
+  new Text("This is rendered on GPU", 100, 500, 80, FontBook.Vollkorn)
 );
-renderer.register(new SampleRateControl(100, 100));
+renderer.register(
+  new Text("View triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
+    debug = !debug;
+    return true;
+  })
+);
+
+renderer.register(
+  new Text("CPU-rendered version", 100, 1000, 100, FontBook.Vollkorn, () => {
+    location.href = "./cpu";
+    return false;
+  })
+);
+renderer.register(new SampleRateControl(200, 200));

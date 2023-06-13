@@ -29,6 +29,7 @@ function drawScreen() {
 class Tiger {
   private colors: Array<[number, number, number, number]> = [];
   private polygons: Array<Polygon> = [];
+  private isDrawing = false;
 
   constructor() {
     this.prepare();
@@ -42,7 +43,7 @@ class Tiger {
       const pathEl = g.children[0];
       let d = pathEl.getAttribute("d")!;
       const polygon = toPolygon(d, 64)
-        .scale(canvas.height / 600)
+        .scale(3)
         .translate((3 * canvas.width) / 5, canvas.height / 4);
 
       const fill = g.getAttribute("fill");
@@ -94,27 +95,45 @@ class Tiger {
     ctx.putImageData(imageData, 0, 0);
   }
 
-  public async drawWithDelay() {
+  public drawWithDelay() {
+    if (this.isDrawing) return;
+    this.isDrawing = true;
     const imageData = new ImageData(canvas.width, canvas.height);
-    const handle = requestAnimationFrame(function draw() {
-      ctx.putImageData(imageData, 0, 0);
-      requestAnimationFrame(draw);
-    });
-    for (let i = 0; i < this.polygons.length; ++i) {
-      const [r, g, b, a] = this.colors[i];
-      if (a == 0 || (r == 255 && g == 255 && b == 255)) continue;
-      await this.polygons[i].traverseAsync(async (x, y) => {
+    function* pixels(that: Tiger) {
+      for (let i = 0; i < that.polygons.length; ++i) {
+        const [r, g, b, a] = that.colors[i];
+        if (a == 0 || (r == 255 && g == 255 && b == 255)) continue;
+        const it = that.polygons[i].traverseAsync();
+        while (true) {
+          const { done, value } = it.next();
+          if (done) break;
+          yield { color: that.colors[i], point: value };
+        }
+      }
+    }
+    const it = pixels(this);
+    const that = this;
+    (function drawChunkOfPixels() {
+      let n = 1000;
+      while (n--) {
+        const { done, value } = it.next();
+        if (done) {
+          that.isDrawing = false;
+          return;
+        }
+        const {
+          color: [r, g, b, a],
+          point: { x, y },
+        } = value;
         const i = (y * canvas.width + x) * 4;
         imageData.data[i] = r;
         imageData.data[i + 1] = g;
         imageData.data[i + 2] = b;
         imageData.data[i + 3] = a;
-        return new Promise((resolve) => {
-          requestIdleCallback(() => resolve());
-        });
-      });
-    }
-    cancelAnimationFrame(handle);
+      }
+      ctx.putImageData(imageData, 0, 0);
+      requestAnimationFrame(drawChunkOfPixels);
+    })();
   }
 }
 

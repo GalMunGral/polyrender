@@ -8,6 +8,7 @@ export const FontBook = {
   NotoSans: parse(await (await fetch("./NotoSans.ttf")).arrayBuffer()),
   NotoSerif: parse(await (await fetch("./NotoSerif.ttf")).arrayBuffer()),
   Zapfino: parse(await (await fetch("./Zapfino.ttf")).arrayBuffer()),
+  Vollkorn: parse(await (await fetch("./VollkornSC-Bold.ttf")).arrayBuffer()),
 };
 
 export function makeText(

@@ -133,9 +133,7 @@ export class Polygon {
     } while (active.length || i < this.visibleEdges.length);
   }
 
-  public async traverseAsync(
-    fn: (x: number, y: number) => Promise<void>
-  ): Promise<void> {
+  public *traverseAsync() {
     if (!this.visibleEdges.length) return;
     let y = Math.ceil(this.visibleEdges[0].y1) - 1;
     let active: Array<ActiveEdge> = [];
@@ -147,7 +145,7 @@ export class Polygon {
       for (let i = 0, winding = 0; i < active.length; ++i) {
         if (winding) {
           for (let x = Math.ceil(active[i - 1].x); x < active[i].x; ++x) {
-            await fn(x, y);
+            yield new Vector(x, y);
           }
         }
         winding += active[i].reversed ? -1 : 1;
