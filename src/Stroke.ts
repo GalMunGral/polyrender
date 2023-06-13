@@ -2,7 +2,7 @@ import { CyclicList } from "./CyclicList.js";
 import { Polygon } from "./Polygon.js";
 import { Vector } from "./Vector.js";
 
-function sampleCircle(samplingRate: number): Polygon {
+export function sampleCircle(samplingRate: number): Polygon {
   const res = new CyclicList<Vector>();
   for (let i = 0; i < samplingRate; ++i) {
     const theta = i * ((2 * Math.PI) / samplingRate);

@@ -63,7 +63,7 @@ export class Renderer {
     `
     );
 
-    canvas.addEventListener("click", (e) => {
+    const dispatch = (e: MouseEvent) => {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
       const y = e.offsetY * devicePixelRatio;
@@ -75,7 +75,11 @@ export class Renderer {
         }
       }
       if (dirty) this.drawScreen();
-    });
+    };
+
+    canvas.addEventListener("click", dispatch);
+    canvas.addEventListener("mouseup", dispatch);
+    canvas.addEventListener("mousedown", dispatch);
 
     canvas.addEventListener("pointermove", (e) => {
       const type = e.type;
@@ -90,7 +94,8 @@ export class Renderer {
           break;
         }
       }
-      if (this.active != active) {
+      // TODO: how to determin if the active element has changed
+      if (this.active?.polygon != active?.polygon) {
         if (this.active?.eventHandler?.("pointerleave", x, y)) {
           dirty = true;
         }
@@ -125,8 +130,8 @@ export class Renderer {
   }
 
   public drawScreen() {
-    this.interactiveAreas.length = 0; // clear
     requestAnimationFrame(() => {
+      this.interactiveAreas.length = 0; // clear
       for (const obj of this.interactiveObjects) {
         obj.draw();
       }

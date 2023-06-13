@@ -114,7 +114,7 @@ var Renderer = class {
       }
     `
     );
-    canvas2.addEventListener("click", (e) => {
+    const dispatch = (e) => {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
       const y = e.offsetY * devicePixelRatio;
@@ -127,7 +127,10 @@ var Renderer = class {
       }
       if (dirty)
         this.drawScreen();
-    });
+    };
+    canvas2.addEventListener("click", dispatch);
+    canvas2.addEventListener("mouseup", dispatch);
+    canvas2.addEventListener("mousedown", dispatch);
     canvas2.addEventListener("pointermove", (e) => {
       const type = e.type;
       const x = e.offsetX * devicePixelRatio;
@@ -141,7 +144,7 @@ var Renderer = class {
           break;
         }
       }
-      if (this.active != active) {
+      if (this.active?.polygon != active?.polygon) {
         if (this.active?.eventHandler?.("pointerleave", x, y)) {
           dirty = true;
         }
@@ -173,8 +176,8 @@ var Renderer = class {
     }
   }
   drawScreen() {
-    this.interactiveAreas.length = 0;
     requestAnimationFrame(() => {
+      this.interactiveAreas.length = 0;
       for (const obj of this.interactiveObjects) {
         obj.draw();
       }
@@ -13511,6 +13514,8 @@ var SampleRateControl = class {
   decreateBtnTextDrawFns;
   increaseBtnHover = false;
   decreaseBtnHover = false;
+  increaseBtnFocus = false;
+  decreaseBtnFocus = false;
   timeoutHandle = -1;
   prepare() {
     this.displayDrawFns = makeText(
@@ -13522,39 +13527,25 @@ var SampleRateControl = class {
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.increaseBtnDrawFn = renderer.compilePolygon(
-      new Polygon([
-        new CyclicList([
-          new Vector(this.x, this.y + 50),
-          new Vector(this.x + 140, this.y + 50),
-          new Vector(this.x + 140, this.y + 200),
-          new Vector(this.x, this.y + 200)
-        ])
-      ])
+      sampleCircle(64).scale(80).translate(this.x + 100, this.y + 100)
     );
     this.increateBtnTextDrawFns = makeText(
       "+1",
-      this.x + 20,
-      this.y + 150,
+      this.x + 100 - FontBook.NotoSans.getAdvanceWidth("+1") / 2,
+      this.y + 100 + 20,
       80,
-      FontBook.NotoSerif,
+      FontBook.NotoSans,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.decreaseBtnDrawFn = renderer.compilePolygon(
-      new Polygon([
-        new CyclicList([
-          new Vector(this.x + 180, this.y + 50),
-          new Vector(this.x + 320, this.y + 50),
-          new Vector(this.x + 320, this.y + 200),
-          new Vector(this.x + 180, this.y + 200)
-        ])
-      ])
+      sampleCircle(64).scale(80).translate(this.x + 300, this.y + 100)
     );
     this.decreateBtnTextDrawFns = makeText(
       "-1",
-      this.x + 220,
-      this.y + 150,
+      this.x + 300 - FontBook.NotoSans.getAdvanceWidth("-1") / 2,
+      this.y + 100 + 20,
       80,
-      FontBook.NotoSerif,
+      FontBook.NotoSans,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
   }
@@ -13571,52 +13562,90 @@ var SampleRateControl = class {
       (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
     );
     this.increaseBtnDrawFn(
-      { color: [1, 0, 0, this.increaseBtnHover ? 0.6 : 0.4] },
+      {
+        color: [
+          1,
+          0,
+          0,
+          this.increaseBtnFocus ? 0.8 : this.increaseBtnHover ? 0.6 : 0.4
+        ]
+      },
       void 0,
       (type) => {
-        if (type == "click") {
-          sampleRate = Math.min(10, sampleRate + 1);
-          this.update();
-          return true;
+        switch (type) {
+          case "click": {
+            sampleRate = Math.min(10, sampleRate + 1);
+            this.update();
+            return true;
+          }
+          case "mousedown": {
+            this.increaseBtnFocus = true;
+            return true;
+          }
+          case "mouseup": {
+            this.increaseBtnFocus = false;
+            return true;
+          }
+          case "pointerenter": {
+            this.increaseBtnHover = true;
+            return true;
+          }
+          case "pointerleave": {
+            this.increaseBtnHover = false;
+            this.increaseBtnFocus = false;
+            return true;
+          }
+          default:
+            return false;
         }
-        if (type == "pointerenter") {
-          this.increaseBtnHover = true;
-          return true;
-        }
-        if (type == "pointerleave") {
-          this.increaseBtnHover = false;
-          return true;
-        }
-        return false;
       },
       debug
     );
     this.increateBtnTextDrawFns.forEach(
-      (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
+      (draw2) => draw2({ color: [1, 1, 1, 1] }, void 0, void 0, debug)
     );
     this.decreaseBtnDrawFn(
-      { color: [0, 0, 1, this.decreaseBtnHover ? 0.6 : 0.4] },
+      {
+        color: [
+          0,
+          0,
+          1,
+          this.decreaseBtnFocus ? 0.8 : this.decreaseBtnHover ? 0.6 : 0.4
+        ]
+      },
       void 0,
       (type) => {
-        if (type == "click") {
-          sampleRate = Math.max(1, sampleRate - 1);
-          this.update();
-          return true;
+        switch (type) {
+          case "click": {
+            sampleRate = Math.max(1, sampleRate - 1);
+            this.update();
+            return true;
+          }
+          case "mousedown": {
+            this.decreaseBtnFocus = true;
+            return true;
+          }
+          case "mouseup": {
+            this.decreaseBtnFocus = false;
+            return true;
+          }
+          case "pointerenter": {
+            this.decreaseBtnHover = true;
+            return true;
+          }
+          case "pointerleave": {
+            this.decreaseBtnHover = false;
+            this.decreaseBtnFocus = false;
+            return true;
+          }
+          default:
+            return false;
         }
-        if (type == "pointerenter") {
-          this.decreaseBtnHover = true;
-          return true;
-        }
-        if (type == "pointerleave") {
-          this.decreaseBtnHover = false;
-          return true;
-        }
-        return false;
       },
       debug
     );
     this.decreateBtnTextDrawFns.forEach(
-      (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
+      (draw2) => draw2({ color: [1, 1, 1, 1] }, void 0, void 0, debug)
     );
   }
 };
