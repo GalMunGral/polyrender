@@ -2,14 +2,11 @@ import { DrawFn, Renderer } from "polyrender/Renderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
 import { parseColor } from "./util";
-import { Polygon } from "polyrender/Polygon";
-import { CyclicList } from "polyrender/CyclicList";
-import { Vector } from "polyrender/Vector";
 import { makeStroke, sampleCircle } from "polyrender/Stroke";
 import { Font } from "opentype.js";
 
-const canvas = document.querySelector("#test") as HTMLCanvasElement;
-const renderer = new Renderer(canvas);
+let sampleRate = 10;
+let debug = false;
 
 const tigerSvg = new DOMParser().parseFromString(
   await (
@@ -19,9 +16,6 @@ const tigerSvg = new DOMParser().parseFromString(
   ).text(),
   "text/xml"
 );
-
-let sampleRate = 10;
-let debug = false;
 
 class SampleRateControl {
   private displayDrawFns: Array<DrawFn>;
@@ -330,19 +324,25 @@ class Text {
   }
 }
 
+const canvas = document.querySelector("#test") as HTMLCanvasElement;
+const renderer = new Renderer(canvas);
+
 renderer.register(new Tiger((3 * canvas.width) / 5, canvas.height / 4));
 renderer.register(
   new Text("This is rendered on GPU", 100, 500, 80, FontBook.Vollkorn)
 );
 renderer.register(
-  new Text("View triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
+  new Text("Click on the text to view:", 100, 600, 80, FontBook.Vollkorn)
+);
+renderer.register(
+  new Text("1. Triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
     debug = !debug;
     return true;
   })
 );
 
 renderer.register(
-  new Text("CPU-rendered version", 100, 1000, 100, FontBook.Vollkorn, () => {
+  new Text("2. CPU-rendered version", 100, 1000, 100, FontBook.Vollkorn, () => {
     location.href = "./cpu";
     return false;
   })

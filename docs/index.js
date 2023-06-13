@@ -99,7 +99,7 @@ var Renderer = class {
           0,
           1.0
         );
-        gl_PointSize = 2.0;
+        gl_PointSize = 4.0;
       }
     `,
       `#version 300 es
@@ -13492,16 +13492,14 @@ function makeStroke(points, lineWidth, closed = false) {
 }
 
 // demo/index.ts
-var canvas = document.querySelector("#test");
-var renderer = new Renderer(canvas);
+var sampleRate = 10;
+var debug = false;
 var tigerSvg = new DOMParser().parseFromString(
   await (await fetch(
     "https://upload.wikimedia.org/wikipedia/commons/f/fd/Ghostscript_Tiger.svg"
   )).text(),
   "text/xml"
 );
-var sampleRate = 10;
-var debug = false;
 var SampleRateControl = class {
   constructor(x, y) {
     this.x = x;
@@ -13781,18 +13779,23 @@ var Text = class {
     }
   }
 };
+var canvas = document.querySelector("#test");
+var renderer = new Renderer(canvas);
 renderer.register(new Tiger(3 * canvas.width / 5, canvas.height / 4));
 renderer.register(
   new Text("This is rendered on GPU", 100, 500, 80, FontBook.Vollkorn)
 );
 renderer.register(
-  new Text("View triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
+  new Text("Click on the text to view:", 100, 600, 80, FontBook.Vollkorn)
+);
+renderer.register(
+  new Text("1. Triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
     debug = !debug;
     return true;
   })
 );
 renderer.register(
-  new Text("CPU-rendered version", 100, 1e3, 100, FontBook.Vollkorn, () => {
+  new Text("2. CPU-rendered version", 100, 1e3, 100, FontBook.Vollkorn, () => {
     location.href = "./cpu";
     return false;
   })
