@@ -504,7 +504,7 @@ function triangulateComponent(vertices, indexPath, triangles) {
       ears.push(i);
   }
   while (indexPath.size > 3 && ears.length) {
-    const i = ears.pop();
+    const i = ears.shift();
     triangles.push([
       indexPath.get(i - 1),
       indexPath.get(i),
