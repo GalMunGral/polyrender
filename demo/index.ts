@@ -5,7 +5,7 @@ import { parseColor } from "./util";
 import { makeStroke, sampleCircle } from "polyrender/Stroke";
 import { Font } from "opentype.js";
 
-let sampleRate = 10;
+let sampleRate = 5;
 let debug = false;
 
 const tigerSvg = new DOMParser().parseFromString(
@@ -40,7 +40,7 @@ class SampleRateControl {
       this.x + 400,
       this.y + 50,
       80,
-      FontBook.Vollkorn,
+      FontBook.Zapfino,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.increaseBtnDrawFn = renderer.compilePolygon(
@@ -244,6 +244,10 @@ class Tiger {
         undefined,
         (type) => {
           switch (type) {
+            case "click": {
+              location.href = "./cpu";
+              return true;
+            }
             case "pointerenter": {
               if (!this.active[i]) {
                 this.active[i] = true;
@@ -279,6 +283,7 @@ class Text {
     private dy: number,
     private size: number,
     private font: Font = FontBook.NotoSerif,
+    private color: [number, number, number, number] = [0, 0, 0, 1],
     private onClick?: () => boolean
   ) {
     this.active = Array(s.length).fill(false);
@@ -299,7 +304,7 @@ class Text {
   public draw() {
     for (const [i, draw] of this.drawFns.entries()) {
       draw(
-        { color: this.active[i] ? [1, 0, 0, 1] : [0, 0, 0, 1] },
+        { color: this.active[i] ? [1, 0, 0, 1] : this.color },
         undefined,
         (type) => {
           switch (type) {
@@ -327,24 +332,33 @@ class Text {
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 
+canvas.addEventListener("click", () => {
+  debug = !debug;
+  renderer.drawScreen();
+});
+
 renderer.register(new Tiger((3 * canvas.width) / 5, canvas.height / 4));
 renderer.register(
   new Text("This is rendered on GPU", 100, 500, 80, FontBook.Vollkorn)
 );
 renderer.register(
-  new Text("Click on the text to view:", 100, 600, 80, FontBook.Vollkorn)
-);
-renderer.register(
-  new Text("1. Triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
-    debug = !debug;
-    return true;
-  })
+  new Text(
+    "Click anywhere to view the triangular mesh",
+    100,
+    600,
+    60,
+    FontBook.NotoSerif
+  )
 );
 
 renderer.register(
-  new Text("2. CPU-rendered version", 100, 1000, 100, FontBook.Vollkorn, () => {
-    location.href = "./cpu";
-    return false;
-  })
+  new Text(
+    "Click on the image to check out CPU rendered version",
+    100,
+    700,
+    50,
+    FontBook.NotoSans,
+    [0, 0, 0, 0.5]
+  )
 );
 renderer.register(new SampleRateControl(200, 200));

@@ -121,6 +121,7 @@ var Renderer = class {
       let dirty = false;
       for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
+          e.stopImmediatePropagation();
           dirty = area.eventHandler(type, x, y);
           break;
         }
@@ -139,6 +140,7 @@ var Renderer = class {
       let dirty = false;
       for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
+          e.stopImmediatePropagation();
           dirty = area.eventHandler(type, x, y);
           active = area;
           break;
@@ -13492,7 +13494,7 @@ function makeStroke(points, lineWidth, closed = false) {
 }
 
 // demo/index.ts
-var sampleRate = 10;
+var sampleRate = 5;
 var debug = false;
 var tigerSvg = new DOMParser().parseFromString(
   await (await fetch(
@@ -13522,7 +13524,7 @@ var SampleRateControl = class {
       this.x + 400,
       this.y + 50,
       80,
-      FontBook.Vollkorn,
+      FontBook.Zapfino,
       sampleRate
     ).map((polygon) => renderer.compilePolygon(polygon));
     this.increaseBtnDrawFn = renderer.compilePolygon(
@@ -13705,6 +13707,10 @@ var Tiger = class {
         void 0,
         (type) => {
           switch (type) {
+            case "click": {
+              location.href = "./cpu";
+              return true;
+            }
             case "pointerenter": {
               if (!this.active[i]) {
                 this.active[i] = true;
@@ -13729,12 +13735,13 @@ var Tiger = class {
   }
 };
 var Text = class {
-  constructor(s, dx, dy, size, font = FontBook.NotoSerif, onClick) {
+  constructor(s, dx, dy, size, font = FontBook.NotoSerif, color = [0, 0, 0, 1], onClick) {
     this.s = s;
     this.dx = dx;
     this.dy = dy;
     this.size = size;
     this.font = font;
+    this.color = color;
     this.onClick = onClick;
     this.active = Array(s.length).fill(false);
     this.prepare();
@@ -13755,7 +13762,7 @@ var Text = class {
   draw() {
     for (const [i, draw2] of this.drawFns.entries()) {
       draw2(
-        { color: this.active[i] ? [1, 0, 0, 1] : [0, 0, 0, 1] },
+        { color: this.active[i] ? [1, 0, 0, 1] : this.color },
         void 0,
         (type) => {
           switch (type) {
@@ -13781,24 +13788,32 @@ var Text = class {
 };
 var canvas = document.querySelector("#test");
 var renderer = new Renderer(canvas);
+canvas.addEventListener("click", () => {
+  debug = !debug;
+  renderer.drawScreen();
+});
 renderer.register(new Tiger(3 * canvas.width / 5, canvas.height / 4));
 renderer.register(
   new Text("This is rendered on GPU", 100, 500, 80, FontBook.Vollkorn)
 );
 renderer.register(
-  new Text("Click on the text to view:", 100, 600, 80, FontBook.Vollkorn)
+  new Text(
+    "Click anywhere to view the triangular mesh",
+    100,
+    600,
+    60,
+    FontBook.NotoSerif
+  )
 );
 renderer.register(
-  new Text("1. Triangle mesh", 100, 800, 100, FontBook.Vollkorn, () => {
-    debug = !debug;
-    return true;
-  })
-);
-renderer.register(
-  new Text("2. CPU-rendered version", 100, 1e3, 100, FontBook.Vollkorn, () => {
-    location.href = "./cpu";
-    return false;
-  })
+  new Text(
+    "Click on the image to check out CPU rendered version",
+    100,
+    700,
+    50,
+    FontBook.NotoSans,
+    [0, 0, 0, 0.5]
+  )
 );
 renderer.register(new SampleRateControl(200, 200));
 /*! Bundled license information:

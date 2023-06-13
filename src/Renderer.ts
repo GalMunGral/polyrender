@@ -70,6 +70,7 @@ export class Renderer {
       let dirty = false;
       for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
+          e.stopImmediatePropagation();
           dirty = area.eventHandler(type, x, y);
           break;
         }
@@ -89,6 +90,7 @@ export class Renderer {
       let dirty = false;
       for (const area of this.interactiveAreas) {
         if (area.eventHandler && area.polygon.contains(new Vector(x, y))) {
+          e.stopImmediatePropagation();
           dirty = area.eventHandler(type, x, y);
           active = area;
           break;
