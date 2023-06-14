@@ -13521,7 +13521,6 @@ function makeStroke(points, lineWidth, closed = false) {
 }
 
 // demo/index.ts
-var sampleRate = 5;
 var debug = false;
 var tigerSvg = new DOMParser().parseFromString(
   await (await fetch(
@@ -13529,154 +13528,6 @@ var tigerSvg = new DOMParser().parseFromString(
   )).text(),
   "text/xml"
 );
-var SampleRateControl = class {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.prepare();
-  }
-  displayDrawFns;
-  increaseBtnDrawFn;
-  increateBtnTextDrawFns;
-  decreaseBtnDrawFn;
-  decreateBtnTextDrawFns;
-  increaseBtnHover = false;
-  decreaseBtnHover = false;
-  increaseBtnFocus = false;
-  decreaseBtnFocus = false;
-  timeoutHandle = -1;
-  prepare() {
-    this.displayDrawFns = makeText(
-      `Sample Rate: ${sampleRate}`,
-      this.x + 400,
-      this.y + 50,
-      80,
-      FontBook.Zapfino,
-      sampleRate
-    ).map((polygon) => renderer.compilePolygon(polygon));
-    this.increaseBtnDrawFn = renderer.compilePolygon(
-      sampleCircle(64).scale(80).translate(this.x, this.y)
-    );
-    this.increateBtnTextDrawFns = makeText(
-      "+1",
-      this.x - FontBook.NotoSans.getAdvanceWidth("+1") / 2,
-      this.y + 20,
-      80,
-      FontBook.NotoSans,
-      sampleRate
-    ).map((polygon) => renderer.compilePolygon(polygon));
-    this.decreaseBtnDrawFn = renderer.compilePolygon(
-      sampleCircle(64).scale(80).translate(this.x + 200, this.y)
-    );
-    this.decreateBtnTextDrawFns = makeText(
-      "-1",
-      this.x + 200 - FontBook.NotoSans.getAdvanceWidth("-1") / 2,
-      this.y + 20,
-      80,
-      FontBook.NotoSans,
-      sampleRate
-    ).map((polygon) => renderer.compilePolygon(polygon));
-  }
-  update() {
-    this.prepare();
-    clearTimeout(this.timeoutHandle);
-    this.timeoutHandle = setTimeout(() => {
-      renderer.prepare();
-      renderer.drawScreen();
-    }, 1e3);
-  }
-  draw() {
-    this.displayDrawFns.forEach(
-      (draw2) => draw2({ color: [0, 0, 0, 1] }, void 0, void 0, debug)
-    );
-    this.increaseBtnDrawFn(
-      {
-        color: [
-          1,
-          0,
-          0,
-          this.increaseBtnFocus ? 0.8 : this.increaseBtnHover ? 0.6 : 0.4
-        ]
-      },
-      void 0,
-      (type) => {
-        switch (type) {
-          case "click": {
-            sampleRate = Math.min(10, sampleRate + 1);
-            this.update();
-            return true;
-          }
-          case "mousedown": {
-            this.increaseBtnFocus = true;
-            return true;
-          }
-          case "mouseup": {
-            this.increaseBtnFocus = false;
-            return true;
-          }
-          case "pointerenter": {
-            this.increaseBtnHover = true;
-            return true;
-          }
-          case "pointerleave": {
-            this.increaseBtnHover = false;
-            this.increaseBtnFocus = false;
-            return true;
-          }
-          default:
-            return false;
-        }
-      },
-      debug
-    );
-    this.increateBtnTextDrawFns.forEach(
-      (draw2) => draw2({ color: [1, 1, 1, 1] }, void 0, void 0, debug)
-    );
-    this.decreaseBtnDrawFn(
-      {
-        color: [
-          0,
-          0,
-          1,
-          this.decreaseBtnFocus ? 0.8 : this.decreaseBtnHover ? 0.6 : 0.4
-        ]
-      },
-      void 0,
-      (type) => {
-        switch (type) {
-          case "click": {
-            sampleRate = Math.max(1, sampleRate - 1);
-            this.update();
-            return true;
-          }
-          case "mousedown": {
-            this.decreaseBtnFocus = true;
-            return true;
-          }
-          case "mouseup": {
-            this.decreaseBtnFocus = false;
-            return true;
-          }
-          case "pointerenter": {
-            this.decreaseBtnHover = true;
-            return true;
-          }
-          case "pointerleave": {
-            this.decreaseBtnHover = false;
-            this.decreaseBtnFocus = false;
-            return true;
-          }
-          default:
-            return false;
-        }
-      },
-      debug
-    );
-    this.decreateBtnTextDrawFns.forEach(
-      (draw2) => draw2({ color: [1, 1, 1, 1] }, void 0, void 0, debug)
-    );
-  }
-};
 var Tiger = class {
   constructor(x, y) {
     this.x = x;
@@ -13703,7 +13554,7 @@ var Tiger = class {
       } else if (pathEl.id == "path444") {
         d = "m 33.2 -114 s -14.8 1.8 -19.2 3 s -23 8.8 -26 10.8 c 0 0 -13.4 5.4 -30.4 25.4 c 0 0 7.6 -3.4 9.8 -6.2 c 0 0 13.6 -12.6 13.4 -10 c 0 0 12.2 -8.6 11.6 -6.4 c 0 0 24.4 -11.2 22.4 -8 c 0 0 21.6 -4.6 20.6 -2.6 c 0 0 18.8 4.4 16 4.6 c 0 0 -5.8 1.2 0.6 4.8 c 0 0 -3.4 4.4 -8.8 0.4 s -2.4 -1.8 -7.4 -0.8 c 0 0 -2.6 0.8 -7.2 -3.2 c 0 0 -5.6 -4.6 -14.4 -1 c 0 0 -30.6 12.6 -32.6 13.2 c 0 0 -3.6 2.8 -6 6.4 c 0 0 -5.8 4.4 -8.8 5.8 c 0 0 -12.8 11.6 -14 13 c 0 0 -3.4 5.2 -4.2 5.6 c 0 0 6.4 -3.8 8.4 -5.8 c 0 0 14 -10 19.4 -10.8 c 0 0 4.4 -3 5.2 -4.4 c 0 0 14.4 -9.2 18.6 -9.2 c 0 0 9.2 5.2 11.6 -1.8 c 0 0 5.8 -1.8 11.4 -0.6 c 0 0 3.2 -2.6 2.4 -4.8 c 0 0 1.6 -1.8 2.6 2 c 0 0 3.4 3.6 8.2 1.6 c 0 0 4 -0.2 2 2.2 c 0 0 -4.4 3.8 -16.2 4 c 0 0 -12.4 0.6 -28.8 8.2 c 0 0 -29.8 10.4 -39 20.8 c 0 0 -6.4 8.8 -11.8 10 c 0 0 -5.8 0.8 -11.8 8.2 c 0 0 9.8 -5.8 18.8 -5.8 c 0 0 4 -2.4 0.2 1.2 c 0 0 -3.6 7.6 -2 13 c 0 0 -0.6 5.2 -1.4 6.8 c 0 0 -7.8 12.8 -7.8 15.2 s 1.2 12.2 1.6 12.8 s -1 -1.6 2.8 0.8 s 6.6 4 7.4 6.8 s -2 -5.4 -2.2 -7.2 s -4.4 -9 -3.6 -11.4 c 0 0 0.4 1.4 1.8 2.4 c 0 0 -0.6 -0.6 0 -4.2 c 0 0 0.8 -5.2 2.2 -8.4 s 3.4 -7 3.8 -7.8 s 0.4 -6.6 1.8 -4 l 3.4 2.6 s -2.8 -2.6 -0.6 -4.8 c 0 0 -1 -5.6 0.8 -8.2 c 0 0 7 -8.4 8.6 -9.4 s 0.2 -0.6 0.2 -0.6 s 6 -4.2 0.2 -2.6 c 0 0 -4 1.6 -7 1.6 c 0 0 -7.6 2 -3.6 -2.2 s 14 -9.6 17.8 -9.4 l 0.8 1.6 l 11.2 -2.4 l -1.2 0.8 s 0.2 0.4 4 -0.6 s 10 1 11.4 -0.8 s 4.8 -2.8 4.4 -1.4 s -0.6 3.4 -0.6 3.4 s 5 -5.8 4.4 -3.6 s -8.8 7.4 -10.2 13.6 l 10.4 -8.2 l 3.6 -3 s 3.6 2.2 3.8 0.6 s 4.8 -7.4 6 -7.2 s 3.2 -2.6 3 0 s 7.4 8 7.4 8 s 3.2 -1.8 4.6 -0.4 s 5.6 -19.8 5.6 -19.8 l 25 -10.6 l 43.6 -3.4 l -16.999 -6.8 l -61.001 -11.4 z";
       }
-      const polygon = toPolygon(d, sampleRate).scale(3).translate(this.x, this.y);
+      const polygon = toPolygon(d).scale(3).translate(this.x, this.y);
       const fill = g.getAttribute("fill");
       if (fill) {
         const color = parseColor(fill);
@@ -13783,7 +13634,8 @@ var Text = class {
       this.dy,
       this.size,
       this.font,
-      sampleRate
+      // sampleRate
+      5
     ).map((polygon) => renderer.compilePolygon(polygon));
   }
   draw() {
@@ -13884,7 +13736,6 @@ renderer.register(
     [0, 0, 0, 0.5]
   )
 );
-renderer.register(new SampleRateControl(200, 200));
 renderer.register(new Cursor());
 /*! Bundled license information:
 

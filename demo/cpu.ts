@@ -8,7 +8,7 @@ canvas.width = window.innerWidth * devicePixelRatio;
 canvas.height = window.innerHeight * devicePixelRatio;
 canvas.style.width = window.innerWidth + "px";
 canvas.style.height = window.innerHeight + "px";
-canvas.style.background = "gray";
+canvas.style.background = "#333333";
 const ctx = canvas.getContext("2d")!;
 
 const tigerSvg = new DOMParser().parseFromString(
@@ -115,7 +115,7 @@ class Tiger {
     const it = pixels(this);
     const that = this;
     (function drawChunkOfPixels() {
-      let n = 5000;
+      let n = 10000;
       while (n--) {
         const { done, value } = it.next();
         if (done) {
