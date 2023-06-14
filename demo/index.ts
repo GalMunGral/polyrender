@@ -1,4 +1,4 @@
-import { DrawFn, Renderer } from "polyrender/Renderer";
+import { DrawFn, InteractiveObject, Renderer } from "polyrender/Renderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
 import { parseColor } from "./util";
@@ -329,6 +329,49 @@ class Text {
   }
 }
 
+class Cursor implements InteractiveObject {
+  private x = 0;
+  private y = 0;
+  private t = 0;
+  private scale = 10;
+  private drawFn: DrawFn;
+  constructor() {
+    this.prepare();
+  }
+  public prepare() {
+    this.drawFn = renderer.compilePolygon(sampleCircle(30));
+    const that = this;
+    requestAnimationFrame(function pulse(now) {
+      that.scale = 8 + 2 * Math.sin(0.01 * now);
+      renderer.drawScreen();
+      requestAnimationFrame(pulse);
+    });
+  }
+  public draw() {
+    this.drawFn(
+      { color: [0, 0, 0, 1] },
+      {
+        translateX: this.x,
+        translateY: this.y,
+        scale: this.scale,
+      },
+      undefined,
+      debug
+    );
+  }
+  public globalEventHandler(type: string, x: number, y: number): boolean {
+    switch (type) {
+      case "pointermove": {
+        this.x = x;
+        this.y = y;
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+}
+
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 
@@ -362,3 +405,4 @@ renderer.register(
   )
 );
 renderer.register(new SampleRateControl(200, 200));
+renderer.register(new Cursor());

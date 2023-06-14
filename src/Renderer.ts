@@ -8,7 +8,11 @@ export type Transform = {
   scale?: number;
 };
 export type EventHander = (type: string, x: number, y: number) => boolean;
-export type InteractiveObject = { prepare: () => void; draw: () => void };
+export type InteractiveObject = {
+  prepare: () => void;
+  draw: () => void;
+  globalEventHandler?: EventHander;
+};
 export type InteractiveArea = { polygon: Polygon; eventHandler?: EventHander };
 export type DrawFn<Config = unknown> = (
   config?: Config,
@@ -36,14 +40,17 @@ export class Renderer {
       `#version 300 es
       uniform float viewportWidth;
       uniform float viewportHeight;
-    
+
+      uniform vec2 translation;
+      uniform float scale;
+
       in vec2 pos;
-      out vec2 texCoord;
     
       void main() {
+        vec2 p =  scale * pos + translation;
         gl_Position = vec4(
-          pos.x * 2.0 / viewportWidth - 1.0,
-          1.0 - pos.y * 2.0 / viewportHeight,
+          p.x * 2.0 / viewportWidth - 1.0,
+          1.0 - p.y * 2.0 / viewportHeight,
           0,
           1.0
         );
@@ -73,6 +80,14 @@ export class Renderer {
           e.stopImmediatePropagation();
           dirty = area.eventHandler(type, x, y);
           break;
+        }
+      }
+      for (const obj of this.interactiveObjects) {
+        if (obj.globalEventHandler) {
+          // e.stopImmediatePropagation();
+          if (obj.globalEventHandler?.(type, x, y)) {
+            dirty = true;
+          }
         }
       }
       if (dirty) this.drawScreen();
@@ -106,6 +121,16 @@ export class Renderer {
         }
         this.active = active;
       }
+
+      for (const obj of this.interactiveObjects) {
+        if (obj.globalEventHandler) {
+          // e.stopImmediatePropagation();
+          if (obj.globalEventHandler?.(type, x, y)) {
+            dirty = true;
+          }
+        }
+      }
+
       if (dirty) this.drawScreen();
     });
 
@@ -193,6 +218,9 @@ export class Renderer {
       program,
       "viewportHeight"
     );
+
+    const scaleUniformLoc = gl.getUniformLocation(program, "scale");
+    const translationUniformLoc = gl.getUniformLocation(program, "translation");
     const colorUniformLoc = gl.getUniformLocation(program, "color");
 
     return (config, transform, eventHandler, debug = false) => {
@@ -202,6 +230,16 @@ export class Renderer {
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
+      gl.uniform1f(scaleUniformLoc, transform?.scale ?? 1);
+      // TODO rotation and scaling
+      gl.uniform2fv(
+        translationUniformLoc,
+        new Float32Array([
+          transform?.translateX ?? 0,
+          transform?.translateY ?? 0,
+        ])
+      );
+
       if (debug) {
         gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);

@@ -88,14 +88,17 @@ var Renderer = class {
       `#version 300 es
       uniform float viewportWidth;
       uniform float viewportHeight;
-    
+
+      uniform vec2 translation;
+      uniform float scale;
+
       in vec2 pos;
-      out vec2 texCoord;
     
       void main() {
+        vec2 p =  scale * pos + translation;
         gl_Position = vec4(
-          pos.x * 2.0 / viewportWidth - 1.0,
-          1.0 - pos.y * 2.0 / viewportHeight,
+          p.x * 2.0 / viewportWidth - 1.0,
+          1.0 - p.y * 2.0 / viewportHeight,
           0,
           1.0
         );
@@ -126,6 +129,13 @@ var Renderer = class {
           break;
         }
       }
+      for (const obj of this.interactiveObjects) {
+        if (obj.globalEventHandler) {
+          if (obj.globalEventHandler?.(type, x, y)) {
+            dirty = true;
+          }
+        }
+      }
       if (dirty)
         this.drawScreen();
     };
@@ -154,6 +164,13 @@ var Renderer = class {
           dirty = true;
         }
         this.active = active;
+      }
+      for (const obj of this.interactiveObjects) {
+        if (obj.globalEventHandler) {
+          if (obj.globalEventHandler?.(type, x, y)) {
+            dirty = true;
+          }
+        }
       }
       if (dirty)
         this.drawScreen();
@@ -229,6 +246,8 @@ var Renderer = class {
       program,
       "viewportHeight"
     );
+    const scaleUniformLoc = gl.getUniformLocation(program, "scale");
+    const translationUniformLoc = gl.getUniformLocation(program, "translation");
     const colorUniformLoc = gl.getUniformLocation(program, "color");
     return (config, transform, eventHandler, debug2 = false) => {
       gl.useProgram(program);
@@ -237,6 +256,14 @@ var Renderer = class {
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
+      gl.uniform1f(scaleUniformLoc, transform?.scale ?? 1);
+      gl.uniform2fv(
+        translationUniformLoc,
+        new Float32Array([
+          transform?.translateX ?? 0,
+          transform?.translateY ?? 0
+        ])
+      );
       if (debug2) {
         gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
@@ -13786,6 +13813,48 @@ var Text = class {
     }
   }
 };
+var Cursor = class {
+  x = 0;
+  y = 0;
+  t = 0;
+  scale = 10;
+  drawFn;
+  constructor() {
+    this.prepare();
+  }
+  prepare() {
+    this.drawFn = renderer.compilePolygon(sampleCircle(30));
+    const that = this;
+    requestAnimationFrame(function pulse(now) {
+      that.scale = 8 + 2 * Math.sin(0.01 * now);
+      renderer.drawScreen();
+      requestAnimationFrame(pulse);
+    });
+  }
+  draw() {
+    this.drawFn(
+      { color: [0, 0, 0, 1] },
+      {
+        translateX: this.x,
+        translateY: this.y,
+        scale: this.scale
+      },
+      void 0,
+      debug
+    );
+  }
+  globalEventHandler(type, x, y) {
+    switch (type) {
+      case "pointermove": {
+        this.x = x;
+        this.y = y;
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+};
 var canvas = document.querySelector("#test");
 var renderer = new Renderer(canvas);
 canvas.addEventListener("click", () => {
@@ -13816,6 +13885,7 @@ renderer.register(
   )
 );
 renderer.register(new SampleRateControl(200, 200));
+renderer.register(new Cursor());
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:
