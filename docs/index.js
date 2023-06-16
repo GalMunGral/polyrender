@@ -13665,48 +13665,6 @@ var Text = class {
     }
   }
 };
-var Cursor = class {
-  x = 0;
-  y = 0;
-  t = 0;
-  scale = 10;
-  drawFn;
-  constructor() {
-    this.prepare();
-  }
-  prepare() {
-    this.drawFn = renderer.compilePolygon(sampleCircle(30));
-    const that = this;
-    requestAnimationFrame(function pulse(now) {
-      that.scale = 8 + 2 * Math.sin(0.01 * now);
-      renderer.drawScreen();
-      requestAnimationFrame(pulse);
-    });
-  }
-  draw() {
-    this.drawFn(
-      { color: [0, 0, 0, 1] },
-      {
-        translateX: this.x,
-        translateY: this.y,
-        scale: this.scale
-      },
-      void 0,
-      debug
-    );
-  }
-  globalEventHandler(type, x, y) {
-    switch (type) {
-      case "pointermove": {
-        this.x = x;
-        this.y = y;
-        return true;
-      }
-      default:
-        return false;
-    }
-  }
-};
 var canvas = document.querySelector("#test");
 var renderer = new Renderer(canvas);
 canvas.addEventListener("click", () => {
@@ -13736,7 +13694,6 @@ renderer.register(
     [0, 0, 0, 0.5]
   )
 );
-renderer.register(new Cursor());
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:

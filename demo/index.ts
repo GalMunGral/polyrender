@@ -406,5 +406,7 @@ renderer.register(
     [0, 0, 0, 0.5]
   )
 );
+
 // renderer.register(new SampleRateControl(200, 200));
-renderer.register(new Cursor());
+
+// renderer.register(new Cursor());

@@ -1028,7 +1028,7 @@ canvas.width = window.innerWidth * devicePixelRatio;
 canvas.height = window.innerHeight * devicePixelRatio;
 canvas.style.width = window.innerWidth + "px";
 canvas.style.height = window.innerHeight + "px";
-canvas.style.background = "#333333";
+canvas.style.background = "lightgray";
 var ctx = canvas.getContext("2d");
 var tigerSvg = new DOMParser().parseFromString(
   await (await fetch(
@@ -1061,7 +1061,7 @@ var Tiger = class {
         const strokeWidth = g.getAttribute("stroke-width") ?? "1";
         const strokeGeometry = makeStroke(
           polygon.paths[0],
-          +strokeWidth * devicePixelRatio,
+          Math.max(0.5, +strokeWidth * devicePixelRatio),
           d.endsWith("z") || d.endsWith("Z")
         );
         const color = parseColor(stroke).map((x) => Math.round(x * 255));
