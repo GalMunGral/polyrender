@@ -1,5 +1,5 @@
 # polyrender
 
-GPU-accelerated Interactive Polygon Renderer
+GPU-accelerated polygon rasterizer
 
 https://galmungral.github.io/polyrender
