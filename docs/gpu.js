@@ -266,7 +266,7 @@ var GPURenderer = class {
         ])
       );
       if (debug2) {
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);
