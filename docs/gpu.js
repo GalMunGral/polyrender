@@ -69,8 +69,8 @@ var Vector = class {
   }
 };
 
-// src/Renderer.ts
-var Renderer = class {
+// src/GPURenderer.ts
+var GPURenderer = class {
   gl;
   basicProgram;
   active = null;
@@ -84,47 +84,37 @@ var Renderer = class {
     canvas2.style.height = window.innerHeight + "px";
     canvas2.style.background = "lightgoldenrodyellow";
     this.gl = canvas2.getContext("webgl2");
-    this.gl.enable(this.gl.BLEND);
-    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
     this.basicProgram = createWebGLProgram(
       this.gl,
       `#version 300 es
       uniform float viewportWidth;
       uniform float viewportHeight;
 
-      uniform vec2 transformOrigin;
       uniform vec2 translation;
       uniform float scale;
 
       in vec2 pos;
-      in vec2 uv;
-
-      out vec2 texCoord;
     
       void main() {
-        vec2 p =  scale * (pos - transformOrigin) + transformOrigin + translation;
+        vec2 p =  scale * pos + translation;
         gl_Position = vec4(
           p.x * 2.0 / viewportWidth - 1.0,
           1.0 - p.y * 2.0 / viewportHeight,
           0,
           1.0
         );
-        texCoord = uv;
         gl_PointSize = 2.0;
       }
     `,
       `#version 300 es
       precision mediump float;
-      uniform sampler2D sampler;
     
       uniform vec4 color;
-      uniform int debug;
-
-      in vec2 texCoord;
       out vec4 fragColor;
     
       void main() {
-        fragColor = debug != 0 ? vec4(0,0,0,1) : texture(sampler, texCoord).a * color;
+        // color = texture2D(uSampler, texCoord);
+        fragColor = color;
       }
     `
     );
@@ -216,42 +206,37 @@ var Renderer = class {
   compilePolygon(polygon) {
     const gl = this.gl;
     const program = this.basicProgram;
-    const { left, right, top, bottom } = polygon.boundingBox;
-    const width = right - left + 1;
-    const height = bottom - top + 1;
-    const raster = new ImageData(width, height);
-    const triangles = [0, 2, 3, 0, 3, 1];
-    polygon.traverse((x, y) => {
-      raster.data[((y - top) * width + (x - left)) * 4 + 3] = 255;
-    });
-    const texture = loadTexture(gl, raster);
+    const { vertices, triangles, paths } = polygon.mesh;
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
     const posBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([left, top, right, top, left, bottom, right, bottom]),
+      new Float32Array(vertices.flatMap(({ x, y }) => [x, y])),
       gl.STATIC_DRAW
     );
     const posLoc = gl.getAttribLocation(program, "pos");
     gl.enableVertexAttribArray(posLoc);
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-    const uvBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]),
-      gl.STATIC_DRAW
-    );
-    const uvLoc = gl.getAttribLocation(program, "uv");
-    gl.enableVertexAttribArray(uvLoc);
-    gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
     const triangleBuf = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
     gl.bufferData(
       gl.ELEMENT_ARRAY_BUFFER,
-      new Uint16Array(triangles),
+      new Uint16Array(triangles.flat()),
+      gl.STATIC_DRAW
+    );
+    const lines = [];
+    for (const tri of triangles) {
+      lines.push([tri[0], tri[1]]);
+      lines.push([tri[1], tri[2]]);
+      lines.push([tri[2], tri[0]]);
+    }
+    const lineBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      new Uint16Array(lines.flat()),
       gl.STATIC_DRAW
     );
     const viewportWidthUniformLoc = gl.getUniformLocation(
@@ -262,19 +247,14 @@ var Renderer = class {
       program,
       "viewportHeight"
     );
-    const originUniformLoc = gl.getUniformLocation(program, "transformOrigin");
-    const origin = new Float32Array([(left + right) / 2, (top + bottom) / 2]);
     const scaleUniformLoc = gl.getUniformLocation(program, "scale");
     const translationUniformLoc = gl.getUniformLocation(program, "translation");
     const colorUniformLoc = gl.getUniformLocation(program, "color");
-    const samplerUniformLoc = gl.getUniformLocation(program, "sampler");
-    const debugUniformLoc = gl.getUniformLocation(program, "debug");
     return (config, transform, eventHandler, debug2 = false) => {
       gl.useProgram(program);
       gl.enable(gl.BLEND);
       gl.bindVertexArray(vao);
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-      gl.uniform2fv(originUniformLoc, origin);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
       gl.uniform1f(scaleUniformLoc, transform?.scale ?? 1);
@@ -285,29 +265,23 @@ var Renderer = class {
           transform?.translateY ?? 0
         ])
       );
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(samplerUniformLoc, 0);
-      const lines = [0, 1, 0, 2, 0, 3, 1, 3, 2, 3];
-      const lineBuf = gl.createBuffer();
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-      gl.bufferData(
-        gl.ELEMENT_ARRAY_BUFFER,
-        new Uint16Array(lines),
-        gl.STATIC_DRAW
-      );
       if (debug2) {
-        gl.uniform1i(debugUniformLoc, 1);
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-        gl.drawElements(gl.LINES, lines.length, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
-        gl.uniform1i(debugUniformLoc, 0);
         gl.uniform4fv(
           colorUniformLoc,
           new Float32Array(config?.color ?? [0, 0, 0, 0])
         );
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
-        gl.drawElements(gl.TRIANGLES, triangles.length, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(
+          gl.TRIANGLES,
+          triangles.length * 3,
+          gl.UNSIGNED_SHORT,
+          0
+        );
       }
       this.interactiveAreas.unshift({ polygon, eventHandler });
     };
@@ -339,40 +313,6 @@ function createWebGLProgram(gl, vertexShaderSource, fragmentShaderSource) {
     throw "program failed to link:" + gl.getProgramInfoLog(program);
   }
   return program;
-}
-function loadTexture(gl, img) {
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  const level = 0;
-  const internalFormat = gl.RGBA;
-  const width = img.width;
-  const height = img.height;
-  const border = 0;
-  const srcFormat = gl.RGBA;
-  const srcType = gl.UNSIGNED_BYTE;
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    level,
-    internalFormat,
-    width,
-    height,
-    border,
-    srcFormat,
-    srcType,
-    img
-  );
-  if (isPowerOf2(img.width) && isPowerOf2(img.height)) {
-    gl.generateMipmap(gl.TEXTURE_2D);
-  } else {
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  }
-  return texture;
-}
-function isPowerOf2(value) {
-  return (value & value - 1) === 0;
 }
 
 // src/CyclicList.ts
@@ -13553,10 +13493,6 @@ function sampleCircle(samplingRate) {
   }
   return new Polygon([res]);
 }
-function makeStrokeCombined(points, lineWidth, closed = false) {
-  const polygons = makeStroke(points, lineWidth, closed);
-  return new Polygon([...polygons.flatMap((p) => p.paths)]);
-}
 function makeStroke(points, lineWidth, closed = false) {
   if (points.size < 2)
     return [];
@@ -13586,7 +13522,7 @@ function makeStroke(points, lineWidth, closed = false) {
   return res;
 }
 
-// demo/index.ts
+// demo/gpu.ts
 var debug = false;
 var tigerSvg = new DOMParser().parseFromString(
   await (await fetch(
@@ -13621,8 +13557,6 @@ var Tiger = class {
         d = "m 33.2 -114 s -14.8 1.8 -19.2 3 s -23 8.8 -26 10.8 c 0 0 -13.4 5.4 -30.4 25.4 c 0 0 7.6 -3.4 9.8 -6.2 c 0 0 13.6 -12.6 13.4 -10 c 0 0 12.2 -8.6 11.6 -6.4 c 0 0 24.4 -11.2 22.4 -8 c 0 0 21.6 -4.6 20.6 -2.6 c 0 0 18.8 4.4 16 4.6 c 0 0 -5.8 1.2 0.6 4.8 c 0 0 -3.4 4.4 -8.8 0.4 s -2.4 -1.8 -7.4 -0.8 c 0 0 -2.6 0.8 -7.2 -3.2 c 0 0 -5.6 -4.6 -14.4 -1 c 0 0 -30.6 12.6 -32.6 13.2 c 0 0 -3.6 2.8 -6 6.4 c 0 0 -5.8 4.4 -8.8 5.8 c 0 0 -12.8 11.6 -14 13 c 0 0 -3.4 5.2 -4.2 5.6 c 0 0 6.4 -3.8 8.4 -5.8 c 0 0 14 -10 19.4 -10.8 c 0 0 4.4 -3 5.2 -4.4 c 0 0 14.4 -9.2 18.6 -9.2 c 0 0 9.2 5.2 11.6 -1.8 c 0 0 5.8 -1.8 11.4 -0.6 c 0 0 3.2 -2.6 2.4 -4.8 c 0 0 1.6 -1.8 2.6 2 c 0 0 3.4 3.6 8.2 1.6 c 0 0 4 -0.2 2 2.2 c 0 0 -4.4 3.8 -16.2 4 c 0 0 -12.4 0.6 -28.8 8.2 c 0 0 -29.8 10.4 -39 20.8 c 0 0 -6.4 8.8 -11.8 10 c 0 0 -5.8 0.8 -11.8 8.2 c 0 0 9.8 -5.8 18.8 -5.8 c 0 0 4 -2.4 0.2 1.2 c 0 0 -3.6 7.6 -2 13 c 0 0 -0.6 5.2 -1.4 6.8 c 0 0 -7.8 12.8 -7.8 15.2 s 1.2 12.2 1.6 12.8 s -1 -1.6 2.8 0.8 s 6.6 4 7.4 6.8 s -2 -5.4 -2.2 -7.2 s -4.4 -9 -3.6 -11.4 c 0 0 0.4 1.4 1.8 2.4 c 0 0 -0.6 -0.6 0 -4.2 c 0 0 0.8 -5.2 2.2 -8.4 s 3.4 -7 3.8 -7.8 s 0.4 -6.6 1.8 -4 l 3.4 2.6 s -2.8 -2.6 -0.6 -4.8 c 0 0 -1 -5.6 0.8 -8.2 c 0 0 7 -8.4 8.6 -9.4 s 0.2 -0.6 0.2 -0.6 s 6 -4.2 0.2 -2.6 c 0 0 -4 1.6 -7 1.6 c 0 0 -7.6 2 -3.6 -2.2 s 14 -9.6 17.8 -9.4 l 0.8 1.6 l 11.2 -2.4 l -1.2 0.8 s 0.2 0.4 4 -0.6 s 10 1 11.4 -0.8 s 4.8 -2.8 4.4 -1.4 s -0.6 3.4 -0.6 3.4 s 5 -5.8 4.4 -3.6 s -8.8 7.4 -10.2 13.6 l 10.4 -8.2 l 3.6 -3 s 3.6 2.2 3.8 0.6 s 4.8 -7.4 6 -7.2 s 3.2 -2.6 3 0 s 7.4 8 7.4 8 s 3.2 -1.8 4.6 -0.4 s 5.6 -19.8 5.6 -19.8 l 25 -10.6 l 43.6 -3.4 l -16.999 -6.8 l -61.001 -11.4 z";
       }
       const polygon = toPolygon(d).scale(3).translate(this.x, this.y);
-      if (polygon.paths.length == 0)
-        return;
       const fill = g.getAttribute("fill");
       if (fill) {
         const color = parseColor(fill);
@@ -13632,14 +13566,16 @@ var Tiger = class {
       const stroke = g.getAttribute("stroke");
       if (stroke) {
         const strokeWidth = g.getAttribute("stroke-width") ?? "1";
-        const strokeGeometry = makeStrokeCombined(
+        const strokeGeometry = makeStroke(
           polygon.paths[0],
           +strokeWidth * devicePixelRatio,
           d.endsWith("z") || d.endsWith("Z")
         );
         const color = parseColor(stroke);
-        this.drawFns.push(renderer.compilePolygon(strokeGeometry));
-        this.colors.push(color);
+        for (const poly of strokeGeometry) {
+          this.drawFns.push(renderer.compilePolygon(poly));
+          this.colors.push(color);
+        }
       }
     });
     this.active = this.colors.map(() => false);
@@ -13647,17 +13583,13 @@ var Tiger = class {
   draw() {
     for (let i = 0; i < this.drawFns.length; ++i) {
       this.drawFns[i](
-        {
-          color: this.active[i] ? [1, 0, 0, 1] : this.colors[i]
-        },
-        {
-          // scale: this.active[i] ? 1.05 : 1,
-          // translateY: this.active[i] ? -10 : 0,
-        },
+        { color: this.active[i] ? [1, 0, 0, 1] : this.colors[i] },
+        void 0,
         (type) => {
           switch (type) {
             case "click": {
-              return false;
+              location.href = "./cpu";
+              return true;
             }
             case "pointerenter": {
               if (!this.active[i]) {
@@ -13704,16 +13636,15 @@ var Text = class {
       this.dy,
       this.size,
       this.font,
-      32
+      // sampleRate
+      5
     ).map((polygon) => renderer.compilePolygon(polygon));
   }
   draw() {
     for (const [i, draw2] of this.drawFns.entries()) {
       draw2(
-        { color: this.active.some((a) => a) ? [1, 0, 0, 1] : this.color },
-        {
-          // scale: this.active[i] ? 1.1 : 1,
-        },
+        { color: this.active[i] ? [1, 0, 0, 1] : this.color },
+        void 0,
         (type) => {
           switch (type) {
             case "pointerenter": {
@@ -13737,17 +13668,17 @@ var Text = class {
   }
 };
 var canvas = document.querySelector("#test");
-var renderer = new Renderer(canvas);
+var renderer = new GPURenderer(canvas);
 canvas.addEventListener("click", () => {
   debug = !debug;
   renderer.drawScreen();
 });
 renderer.register(new Tiger(2e3, 500));
 renderer.register(
-  new Text("CPU Rasterization &", 100, 200, 100, FontBook.Vollkorn)
+  new Text("CPU Triangulation &", 100, 200, 100, FontBook.Vollkorn)
 );
 renderer.register(
-  new Text("GPU Compositing", 100, 300, 100, FontBook.Vollkorn)
+  new Text("GPU Rasterization", 100, 300, 100, FontBook.Vollkorn)
 );
 renderer.register(
   new Text(
@@ -13757,34 +13688,6 @@ renderer.register(
     50,
     FontBook.Zapfino,
     [0, 0, 0, 1]
-  )
-);
-renderer.register(
-  new Text(
-    "CPU Rendered Version",
-    100,
-    800,
-    80,
-    FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
-    () => {
-      location.href = "./cpu";
-      return true;
-    }
-  )
-);
-renderer.register(
-  new Text(
-    "GPU Rendered Version",
-    100,
-    700,
-    80,
-    FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
-    () => {
-      location.href = "./gpu";
-      return true;
-    }
   )
 );
 /*! Bundled license information:

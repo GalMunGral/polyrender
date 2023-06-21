@@ -21,7 +21,7 @@ export type DrawFn<Config = unknown> = (
   debug?: boolean
 ) => void;
 
-export class Renderer {
+export class GPURenderer {
   private gl: WebGL2RenderingContext;
   private basicProgram: WebGLProgram;
   private active: InteractiveArea | null = null;
@@ -37,48 +37,37 @@ export class Renderer {
     canvas.style.background = "lightgoldenrodyellow";
 
     this.gl = canvas.getContext("webgl2")!;
-    this.gl.enable(this.gl.BLEND);
-    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
-
     this.basicProgram = createWebGLProgram(
       this.gl,
       `#version 300 es
       uniform float viewportWidth;
       uniform float viewportHeight;
 
-      uniform vec2 transformOrigin;
       uniform vec2 translation;
       uniform float scale;
 
       in vec2 pos;
-      in vec2 uv;
-
-      out vec2 texCoord;
     
       void main() {
-        vec2 p =  scale * (pos - transformOrigin) + transformOrigin + translation;
+        vec2 p =  scale * pos + translation;
         gl_Position = vec4(
           p.x * 2.0 / viewportWidth - 1.0,
           1.0 - p.y * 2.0 / viewportHeight,
           0,
           1.0
         );
-        texCoord = uv;
         gl_PointSize = 2.0;
       }
     `,
       `#version 300 es
       precision mediump float;
-      uniform sampler2D sampler;
     
       uniform vec4 color;
-      uniform int debug;
-
-      in vec2 texCoord;
       out vec4 fragColor;
     
       void main() {
-        fragColor = debug != 0 ? vec4(0,0,0,1) : texture(sampler, texCoord).a * color;
+        // color = texture2D(uSampler, texCoord);
+        fragColor = color;
       }
     `
     );
@@ -183,19 +172,7 @@ export class Renderer {
   ): DrawFn<{ color: [number, number, number, number] }> {
     const gl = this.gl;
     const program = this.basicProgram;
-    const { left, right, top, bottom } = polygon.boundingBox;
-
-    const width = right - left + 1;
-    const height = bottom - top + 1;
-    const raster = new ImageData(width, height);
-
-    const triangles = [0, 2, 3, 0, 3, 1];
-
-    polygon.traverse((x, y) => {
-      raster.data[((y - top) * width + (x - left)) * 4 + 3] = 255;
-    });
-
-    const texture = loadTexture(gl, raster);
+    const { vertices, triangles, paths } = polygon.mesh;
 
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
@@ -204,7 +181,7 @@ export class Renderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([left, top, right, top, left, bottom, right, bottom]),
+      new Float32Array(vertices.flatMap(({ x, y }) => [x, y])),
       gl.STATIC_DRAW
     );
 
@@ -212,23 +189,26 @@ export class Renderer {
     gl.enableVertexAttribArray(posLoc);
     gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
-    const uvBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]),
-      gl.STATIC_DRAW
-    );
-
-    const uvLoc = gl.getAttribLocation(program, "uv");
-    gl.enableVertexAttribArray(uvLoc);
-    gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
-
     const triangleBuf = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
     gl.bufferData(
       gl.ELEMENT_ARRAY_BUFFER,
-      new Uint16Array(triangles),
+      new Uint16Array(triangles.flat()),
+      gl.STATIC_DRAW
+    );
+
+    const lines: Array<[number, number]> = [];
+    for (const tri of triangles) {
+      lines.push([tri[0], tri[1]]);
+      lines.push([tri[1], tri[2]]);
+      lines.push([tri[2], tri[0]]);
+    }
+
+    const lineBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      new Uint16Array(lines.flat()),
       gl.STATIC_DRAW
     );
 
@@ -241,20 +221,15 @@ export class Renderer {
       "viewportHeight"
     );
 
-    const originUniformLoc = gl.getUniformLocation(program, "transformOrigin");
-    const origin = new Float32Array([(left + right) / 2, (top + bottom) / 2]);
     const scaleUniformLoc = gl.getUniformLocation(program, "scale");
     const translationUniformLoc = gl.getUniformLocation(program, "translation");
     const colorUniformLoc = gl.getUniformLocation(program, "color");
-    const samplerUniformLoc = gl.getUniformLocation(program, "sampler");
-    const debugUniformLoc = gl.getUniformLocation(program, "debug");
 
     return (config, transform, eventHandler, debug = false) => {
       gl.useProgram(program);
       gl.enable(gl.BLEND);
       gl.bindVertexArray(vao);
       gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-      gl.uniform2fv(originUniformLoc, origin);
       gl.uniform1f(viewportWidthUniformLoc, this.gl.canvas.width);
       gl.uniform1f(viewportHeightUniformLoc, this.gl.canvas.height);
       gl.uniform1f(scaleUniformLoc, transform?.scale ?? 1);
@@ -267,32 +242,23 @@ export class Renderer {
         ])
       );
 
-      // gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.uniform1i(samplerUniformLoc, 0);
-
-      const lines = [0, 1, 0, 2, 0, 3, 1, 3, 2, 3];
-      const lineBuf = gl.createBuffer();
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-      gl.bufferData(
-        gl.ELEMENT_ARRAY_BUFFER,
-        new Uint16Array(lines),
-        gl.STATIC_DRAW
-      );
-
       if (debug) {
-        gl.uniform1i(debugUniformLoc, 1);
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
-        gl.drawElements(gl.LINES, lines.length, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.POINTS, 0, vertices.length);
       } else {
-        gl.uniform1i(debugUniformLoc, 0);
         gl.uniform4fv(
           colorUniformLoc,
           new Float32Array(config?.color ?? [0, 0, 0, 0])
         );
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuf);
-        gl.drawElements(gl.TRIANGLES, triangles.length, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(
+          gl.TRIANGLES,
+          triangles.length * 3,
+          gl.UNSIGNED_SHORT,
+          0
+        );
       }
       this.interactiveAreas.unshift({ polygon, eventHandler });
     };
@@ -341,46 +307,4 @@ function createWebGLProgram(
   }
 
   return program;
-}
-
-function loadTexture(gl: WebGL2RenderingContext, img: ImageData) {
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-
-  const level = 0;
-  const internalFormat = gl.RGBA;
-  const width = img.width;
-  const height = img.height;
-  const border = 0;
-  const srcFormat = gl.RGBA;
-  const srcType = gl.UNSIGNED_BYTE;
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    level,
-    internalFormat,
-    width,
-    height,
-    border,
-    srcFormat,
-    srcType,
-    img
-  );
-
-  if (isPowerOf2(img.width) && isPowerOf2(img.height)) {
-    // Yes, it's a power of 2. Generate mips.
-    gl.generateMipmap(gl.TEXTURE_2D);
-  } else {
-    // No, it's not a power of 2. Turn off mips and set
-    // wrapping to clamp to edge
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  }
-
-  return texture;
-}
-
-function isPowerOf2(value: number) {
-  return (value & (value - 1)) === 0;
 }

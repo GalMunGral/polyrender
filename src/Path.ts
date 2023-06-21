@@ -68,7 +68,7 @@ export type PathConfig = {
   paths: Array<SvgPath>;
 };
 
-export function toPolygon(d: string, samplingRate?: number) {
+export function toPolygon(d: string, samplingRate?: number): Polygon {
   const path = parseSvgPath(d);
 
   let start: Vector | null = null;
@@ -135,9 +135,11 @@ export function toPolygon(d: string, samplingRate?: number) {
   }
 
   const polygon = new Polygon([vertices]);
-  if (polygon.paths[0].size && !isPathClockwise(polygon.paths[0])) {
+
+  if (polygon.paths.length && !isPathClockwise(polygon.paths[0])) {
     polygon.paths[0].items.reverse();
   }
+
   return polygon;
 }
 

@@ -1,11 +1,10 @@
-import { DrawFn, InteractiveObject, Renderer } from "polyrender/Renderer";
+import { DrawFn, InteractiveObject, GPURenderer } from "polyrender/GPURenderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
 import { parseColor } from "./util";
-import { makeStrokeCombined, sampleCircle } from "polyrender/Stroke";
+import { makeStroke, sampleCircle } from "polyrender/Stroke";
 import { Font } from "opentype.js";
 
-// let sampleRate = 5;
 let debug = false;
 
 const tigerSvg = new DOMParser().parseFromString(
@@ -52,7 +51,7 @@ class Tiger {
       }
 
       const polygon = toPolygon(d).scale(3).translate(this.x, this.y);
-      if (polygon.paths.length == 0) return;
+      // if (polygon.paths.length == 0) return;
 
       const fill = g.getAttribute("fill");
       if (fill) {
@@ -63,14 +62,16 @@ class Tiger {
       const stroke = g.getAttribute("stroke");
       if (stroke) {
         const strokeWidth = g.getAttribute("stroke-width") ?? "1";
-        const strokeGeometry = makeStrokeCombined(
+        const strokeGeometry = makeStroke(
           polygon.paths[0],
           +strokeWidth * devicePixelRatio,
           d.endsWith("z") || d.endsWith("Z")
         );
         const color = parseColor(stroke);
-        this.drawFns.push(renderer.compilePolygon(strokeGeometry));
-        this.colors.push(color);
+        for (const poly of strokeGeometry) {
+          this.drawFns.push(renderer.compilePolygon(poly));
+          this.colors.push(color);
+        }
       }
     });
     this.active = this.colors.map(() => false);
@@ -79,19 +80,13 @@ class Tiger {
   public draw() {
     for (let i = 0; i < this.drawFns.length; ++i) {
       this.drawFns[i](
-        {
-          color: this.active[i] ? [1, 0, 0, 1] : this.colors[i],
-        },
-        {
-          // scale: this.active[i] ? 1.05 : 1,
-          // translateY: this.active[i] ? -10 : 0,
-        },
+        { color: this.active[i] ? [1, 0, 0, 1] : this.colors[i] },
+        undefined,
         (type) => {
           switch (type) {
             case "click": {
-              // location.href = "./cpu";
-              // return true;
-              return false;
+              location.href = "./cpu";
+              return true;
             }
             case "pointerenter": {
               if (!this.active[i]) {
@@ -142,17 +137,16 @@ class Text {
       this.dy,
       this.size,
       this.font,
-      32
+      // sampleRate
+      5
     ).map((polygon) => renderer.compilePolygon(polygon)));
   }
 
   public draw() {
     for (const [i, draw] of this.drawFns.entries()) {
       draw(
-        { color: this.active.some((a) => a) ? [1, 0, 0, 1] : this.color },
-        {
-          // scale: this.active[i] ? 1.1 : 1,
-        },
+        { color: this.active[i] ? [1, 0, 0, 1] : this.color },
+        undefined,
         (type) => {
           switch (type) {
             case "pointerenter": {
@@ -177,7 +171,7 @@ class Text {
 }
 
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
-const renderer = new Renderer(canvas);
+const renderer = new GPURenderer(canvas);
 
 canvas.addEventListener("click", () => {
   debug = !debug;
@@ -187,11 +181,11 @@ canvas.addEventListener("click", () => {
 renderer.register(new Tiger(2000, 500));
 
 renderer.register(
-  new Text("CPU Rasterization &", 100, 200, 100, FontBook.Vollkorn)
+  new Text("CPU Triangulation &", 100, 200, 100, FontBook.Vollkorn)
 );
 
 renderer.register(
-  new Text("GPU Compositing", 100, 300, 100, FontBook.Vollkorn)
+  new Text("GPU Rasterization", 100, 300, 100, FontBook.Vollkorn)
 );
 
 renderer.register(
@@ -204,35 +198,3 @@ renderer.register(
     [0, 0, 0, 1]
   )
 );
-
-renderer.register(
-  new Text(
-    "CPU Rendered Version",
-    100,
-    800,
-    80,
-    FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
-    () => {
-      location.href = "./cpu";
-      return true;
-    }
-  )
-);
-
-renderer.register(
-  new Text(
-    "GPU Rendered Version",
-    100,
-    700,
-    80,
-    FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
-    () => {
-      location.href = "./gpu";
-      return true;
-    }
-  )
-);
-
-// renderer.register(new Cursor());

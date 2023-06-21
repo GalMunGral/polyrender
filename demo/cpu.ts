@@ -1,6 +1,9 @@
+import { Font } from "opentype.js";
+import { DrawFn } from "polyrender/GPURenderer";
 import { toPolygon } from "polyrender/Path.js";
 import { Polygon } from "polyrender/Polygon";
 import { makeStroke } from "polyrender/Stroke";
+import { FontBook, makeText } from "polyrender/Text";
 
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 document.body.style.margin = "0px";
@@ -8,7 +11,7 @@ canvas.width = window.innerWidth * devicePixelRatio;
 canvas.height = window.innerHeight * devicePixelRatio;
 canvas.style.width = window.innerWidth + "px";
 canvas.style.height = window.innerHeight + "px";
-canvas.style.background = "lightgray";
+canvas.style.background = "lightgoldenrodyellow";
 const ctx = canvas.getContext("2d")!;
 
 const tigerSvg = new DOMParser().parseFromString(
@@ -32,7 +35,7 @@ class Tiger {
   private polygons: Array<Polygon> = [];
   private isDrawing = false;
 
-  constructor() {
+  constructor(private x: number, private y: number) {
     this.prepare();
   }
 
@@ -43,9 +46,7 @@ class Tiger {
     tigerSvg.children[0].children[0].querySelectorAll("g").forEach((g) => {
       const pathEl = g.children[0];
       let d = pathEl.getAttribute("d")!;
-      const polygon = toPolygon(d, 64)
-        .scale(3)
-        .translate((3 * canvas.width) / 5, canvas.height / 4);
+      const polygon = toPolygon(d, 64).scale(3).translate(this.x, this.y);
 
       const fill = g.getAttribute("fill");
       if (fill) {
@@ -81,8 +82,7 @@ class Tiger {
     });
   }
 
-  public draw() {
-    const imageData = new ImageData(canvas.width, canvas.height);
+  public draw(imageData: ImageData) {
     for (let i = 0; i < this.polygons.length; ++i) {
       const [r, g, b, a] = this.colors[i];
       this.polygons[i].traverse((x, y) => {
@@ -96,10 +96,9 @@ class Tiger {
     ctx.putImageData(imageData, 0, 0);
   }
 
-  public drawWithDelay() {
+  public drawWithDelay(imageData: ImageData) {
     if (this.isDrawing) return;
     this.isDrawing = true;
-    const imageData = new ImageData(canvas.width, canvas.height);
     function* pixels(that: Tiger) {
       for (let i = 0; i < that.polygons.length; ++i) {
         // const [r, g, b, a] = that.colors[i];
@@ -115,7 +114,7 @@ class Tiger {
     const it = pixels(this);
     const that = this;
     (function drawChunkOfPixels() {
-      let n = 10000;
+      let n = 5000;
       while (n--) {
         const { done, value } = it.next();
         if (done) {
@@ -138,12 +137,72 @@ class Tiger {
   }
 }
 
-const tiger = new Tiger();
-tiger.draw();
+class Text {
+  private fontSize = 400;
+  private active: Array<boolean> = [];
+  private polygons: Array<Polygon> = [];
+
+  constructor(
+    private s: string,
+    private dx: number,
+    private dy: number,
+    private size: number,
+    private font: Font = FontBook.NotoSerif,
+    private color: [number, number, number, number] = [0, 0, 0, 1],
+    private onClick?: () => boolean
+  ) {
+    this.active = Array(s.length).fill(false);
+    this.prepare();
+  }
+
+  public prepare() {
+    this.polygons = makeText(
+      this.s,
+      this.dx,
+      this.dy,
+      this.size,
+      this.font,
+      32
+    );
+  }
+
+  public draw(imageData: ImageData) {
+    const [r, g, b, a] = this.color.map((x) => Math.round(x * 255));
+    for (let i = 0; i < this.polygons.length; ++i) {
+      this.polygons[i].traverse((x, y) => {
+        const i = (y * canvas.width + x) * 4;
+        imageData.data[i] = r;
+        imageData.data[i + 1] = g;
+        imageData.data[i + 2] = b;
+        imageData.data[i + 3] = a;
+      });
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+}
+
+const tiger = new Tiger(2000, 500);
+const text1 = new Text("CPU Rasterization", 100, 200, 100, FontBook.Vollkorn);
+const text2 = new Text(
+  "Click anywhere to visualize the scan conversion process",
+  100,
+  300,
+  50,
+  FontBook.Zapfino,
+  [0, 0, 0, 1]
+);
+
+const imageData = new ImageData(canvas.width, canvas.height);
+tiger.draw(imageData);
+text1.draw(imageData);
+text2.draw(imageData);
 
 canvas.onclick = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  tiger.drawWithDelay();
+  const imageData = new ImageData(canvas.width, canvas.height);
+  tiger.drawWithDelay(imageData);
+  text1.draw(imageData);
+  text2.draw(imageData);
 };
 
 function parseColor(s: string): [number, number, number, number] {

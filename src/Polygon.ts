@@ -28,15 +28,17 @@ export class Polygon {
   public paths: Array<CyclicList<Vector>>;
 
   constructor(paths: Array<CyclicList<Vector>>) {
-    this.paths = paths.map(function dedupe(path) {
-      const res = new CyclicList<Vector>();
-      let prev = path.get(-1);
-      for (const p of path) {
-        if (!p.equals(prev)) res.push(p);
-        prev = p;
-      }
-      return res;
-    });
+    this.paths = paths
+      .map(function dedupe(path) {
+        const res = new CyclicList<Vector>();
+        let prev = path.get(-1);
+        for (const p of path) {
+          if (!p.equals(prev)) res.push(p);
+          prev = p;
+        }
+        return res;
+      })
+      .filter((p) => p.size > 0);
   }
 
   public get boundingBox(): BoundingBox {
@@ -47,10 +49,10 @@ export class Polygon {
       let bottom = -Infinity;
       for (const path of this.paths) {
         for (const { x, y } of path) {
-          left = Math.min(left, x);
-          right = Math.max(right, x);
-          top = Math.min(top, y);
-          bottom = Math.max(bottom, y);
+          left = Math.min(left, Math.floor(x));
+          right = Math.max(right, Math.floor(x));
+          top = Math.min(top, Math.floor(y));
+          bottom = Math.max(bottom, Math.floor(y));
         }
       }
       this._boundingBox = new BoundingBox(left, right, top, bottom);

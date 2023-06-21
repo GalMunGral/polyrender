@@ -11,6 +11,15 @@ export function sampleCircle(samplingRate: number): Polygon {
   return new Polygon([res]);
 }
 
+export function makeStrokeCombined(
+  points: CyclicList<Vector>,
+  lineWidth: number,
+  closed = false
+) {
+  const polygons = makeStroke(points, lineWidth, closed);
+  return new Polygon([...polygons.flatMap((p) => p.paths)]);
+}
+
 export function makeStroke(
   points: CyclicList<Vector>,
   lineWidth: number,
