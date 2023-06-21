@@ -534,13 +534,15 @@ function triangulateComponent(vertices, indexPath, triangles) {
       ears.push(i);
   }
   while (indexPath.size > 3 && ears.length) {
-    const i = ears.shift();
+    let j = Math.floor(Math.random() * ears.length);
+    const i = ears[j];
+    ears.splice(j, 1);
     triangles.push([
       indexPath.get(i - 1),
       indexPath.get(i),
       indexPath.get(i + 1)
     ]);
-    ears = ears.filter((j) => j != mod(i - 1) && j != mod(i + 1)).map((j) => j < i ? j : j - 1);
+    ears = ears.filter((j2) => j2 != mod(i - 1) && j2 != mod(i + 1)).map((j2) => j2 < i ? j2 : j2 - 1);
     indexPath.delete(i);
     if (isEar(i - 1)) {
       ears.push(mod(i - 1));

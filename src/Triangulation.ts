@@ -134,12 +134,12 @@ function triangulateComponent(
   }
 
   while (indexPath.size > 3 && ears.length) {
-    // let j = Math.floor(Math.random() * ears.length);
-    // const i = ears[j];
-    // ears.splice(j, 1);
+    let j = Math.floor(Math.random() * ears.length);
+    const i = ears[j];
+    ears.splice(j, 1);
 
     // const i = ears.pop()!;
-    const i = ears.shift()!;
+    // const i = ears.shift()!;
 
     triangles.push([
       indexPath.get(i - 1),
