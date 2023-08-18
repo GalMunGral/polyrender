@@ -34,7 +34,7 @@ export class GPURenderer {
     canvas.height = window.innerHeight * devicePixelRatio;
     canvas.style.width = window.innerWidth + "px";
     canvas.style.height = window.innerHeight + "px";
-    canvas.style.background = "lightgoldenrodyellow";
+    canvas.style.background = "lightgray";
 
     this.gl = canvas.getContext("webgl2")!;
     this.basicProgram = createWebGLProgram(
@@ -243,7 +243,7 @@ export class GPURenderer {
       );
 
       if (debug) {
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);

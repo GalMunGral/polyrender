@@ -34,7 +34,7 @@ export class Renderer {
     canvas.height = window.innerHeight * devicePixelRatio;
     canvas.style.width = window.innerWidth + "px";
     canvas.style.height = window.innerHeight + "px";
-    canvas.style.background = "lightgoldenrodyellow";
+    canvas.style.background = "lightgray";
 
     this.gl = canvas.getContext("webgl2")!;
     this.gl.enable(this.gl.BLEND);
@@ -78,7 +78,7 @@ export class Renderer {
       out vec4 fragColor;
     
       void main() {
-        fragColor = debug != 0 ? vec4(0,0,0,1) : texture(sampler, texCoord).a * color;
+        fragColor = debug != 0 ? color : texture(sampler, texCoord).a * color;
       }
     `
     );
@@ -282,7 +282,7 @@ export class Renderer {
 
       if (debug) {
         gl.uniform1i(debugUniformLoc, 1);
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length, gl.UNSIGNED_SHORT, 0);
       } else {

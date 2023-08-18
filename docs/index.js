@@ -82,7 +82,7 @@ var Renderer = class {
     canvas2.height = window.innerHeight * devicePixelRatio;
     canvas2.style.width = window.innerWidth + "px";
     canvas2.style.height = window.innerHeight + "px";
-    canvas2.style.background = "lightgoldenrodyellow";
+    canvas2.style.background = "lightgray";
     this.gl = canvas2.getContext("webgl2");
     this.gl.enable(this.gl.BLEND);
     this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
@@ -124,7 +124,7 @@ var Renderer = class {
       out vec4 fragColor;
     
       void main() {
-        fragColor = debug != 0 ? vec4(0,0,0,1) : texture(sampler, texCoord).a * color;
+        fragColor = debug != 0 ? color : texture(sampler, texCoord).a * color;
       }
     `
     );
@@ -297,7 +297,7 @@ var Renderer = class {
       );
       if (debug2) {
         gl.uniform1i(debugUniformLoc, 1);
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length, gl.UNSIGNED_SHORT, 0);
       } else {
@@ -13696,7 +13696,7 @@ var Text = class {
     this.active = Array(s.length).fill(false);
     this.prepare();
   }
-  fontSize = 400;
+  // private fontSize = 400;
   active = [];
   drawFns = [];
   prepare() {
@@ -13744,31 +13744,15 @@ canvas.addEventListener("click", () => {
   debug = !debug;
   renderer.drawScreen();
 });
-renderer.register(new Tiger(2e3, 500));
-renderer.register(
-  new Text("CPU Rasterization &", 100, 200, 100, FontBook.Vollkorn)
-);
-renderer.register(
-  new Text("GPU Compositing", 100, 300, 100, FontBook.Vollkorn)
-);
+renderer.register(new Tiger(640, 640));
 renderer.register(
   new Text(
-    "Click anywhere to view the triangular mesh",
+    "CPU (click me)",
     100,
-    500,
-    50,
-    FontBook.Zapfino,
-    [0, 0, 0, 1]
-  )
-);
-renderer.register(
-  new Text(
-    "CPU Rendered Version",
+    200,
     100,
-    800,
-    80,
     FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
+    [1, 1, 1, 1],
     () => {
       location.href = "./cpu";
       return true;
@@ -13777,12 +13761,12 @@ renderer.register(
 );
 renderer.register(
   new Text(
-    "GPU Rendered Version",
+    "GPU (click me)",
     100,
-    700,
-    80,
+    300,
+    100,
     FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
+    [1, 1, 1, 1],
     () => {
       location.href = "./gpu";
       return true;

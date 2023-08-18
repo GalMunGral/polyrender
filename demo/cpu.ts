@@ -1,5 +1,4 @@
 import { Font } from "opentype.js";
-import { DrawFn } from "polyrender/GPURenderer";
 import { toPolygon } from "polyrender/Path.js";
 import { Polygon } from "polyrender/Polygon";
 import { makeStroke } from "polyrender/Stroke";
@@ -11,7 +10,7 @@ canvas.width = window.innerWidth * devicePixelRatio;
 canvas.height = window.innerHeight * devicePixelRatio;
 canvas.style.width = window.innerWidth + "px";
 canvas.style.height = window.innerHeight + "px";
-canvas.style.background = "lightgoldenrodyellow";
+canvas.style.background = "lightgray";
 const ctx = canvas.getContext("2d")!;
 
 const tigerSvg = new DOMParser().parseFromString(
@@ -181,28 +180,15 @@ class Text {
   }
 }
 
-const tiger = new Tiger(2000, 500);
-const text1 = new Text("CPU Rasterization", 100, 200, 100, FontBook.Vollkorn);
-const text2 = new Text(
-  "Click anywhere to visualize the scan conversion process",
-  100,
-  300,
-  50,
-  FontBook.Zapfino,
-  [0, 0, 0, 1]
-);
+const tiger = new Tiger(640, 640);
 
 const imageData = new ImageData(canvas.width, canvas.height);
 tiger.draw(imageData);
-text1.draw(imageData);
-text2.draw(imageData);
 
 canvas.onclick = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const imageData = new ImageData(canvas.width, canvas.height);
   tiger.drawWithDelay(imageData);
-  text1.draw(imageData);
-  text2.draw(imageData);
 };
 
 function parseColor(s: string): [number, number, number, number] {

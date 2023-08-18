@@ -82,7 +82,7 @@ var GPURenderer = class {
     canvas2.height = window.innerHeight * devicePixelRatio;
     canvas2.style.width = window.innerWidth + "px";
     canvas2.style.height = window.innerHeight + "px";
-    canvas2.style.background = "lightgoldenrodyellow";
+    canvas2.style.background = "lightgray";
     this.gl = canvas2.getContext("webgl2");
     this.basicProgram = createWebGLProgram(
       this.gl,
@@ -266,7 +266,7 @@ var GPURenderer = class {
         ])
       );
       if (debug2) {
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length * 2, gl.UNSIGNED_SHORT, 0);
         gl.drawArrays(gl.POINTS, 0, vertices.length);
@@ -13413,63 +13413,6 @@ var FontBook = {
   Vollkorn: parseBuffer(await (await fetch("./VollkornSC.ttf")).arrayBuffer()),
   BlackOpsOne: parseBuffer(await (await fetch("./BlackOpsOne.ttf")).arrayBuffer())
 };
-function makeText(text, dx, dy, size, font, samplingRate) {
-  const polygons = [];
-  for (const path of font.getPaths(text, dx, dy, size)) {
-    let start = null;
-    let prev = null;
-    let pathSet = [];
-    let current = new CyclicList();
-    for (const cmd of path.commands) {
-      switch (cmd.type) {
-        case "M": {
-          start = prev = new Vector(cmd.x, cmd.y);
-          break;
-        }
-        case "L": {
-          const p = new Vector(cmd.x, cmd.y);
-          current.push(prev);
-          prev = p;
-          break;
-        }
-        case "Q": {
-          current.push(
-            ...sampleBezier(
-              [prev, new Vector(cmd.x1, cmd.y1), new Vector(cmd.x, cmd.y)],
-              samplingRate
-            )
-          );
-          prev = new Vector(cmd.x, cmd.y);
-          break;
-        }
-        case "C": {
-          current.push(
-            ...sampleBezier(
-              [
-                prev,
-                new Vector(cmd.x1, cmd.y1),
-                new Vector(cmd.x2, cmd.y2),
-                new Vector(cmd.x, cmd.y)
-              ],
-              samplingRate
-            )
-          );
-          prev = new Vector(cmd.x, cmd.y);
-          break;
-        }
-        case "Z": {
-          current.push(start);
-          pathSet.push(current);
-          current = new CyclicList();
-          prev = null;
-          break;
-        }
-      }
-    }
-    polygons.push(new Polygon(pathSet));
-  }
-  return polygons.filter((p) => p.paths.length);
-}
 
 // demo/util.ts
 function parseColor(s) {
@@ -13616,82 +13559,13 @@ var Tiger = class {
     }
   }
 };
-var Text = class {
-  constructor(s, dx, dy, size, font = FontBook.NotoSerif, color = [0, 0, 0, 1], onClick) {
-    this.s = s;
-    this.dx = dx;
-    this.dy = dy;
-    this.size = size;
-    this.font = font;
-    this.color = color;
-    this.onClick = onClick;
-    this.active = Array(s.length).fill(false);
-    this.prepare();
-  }
-  fontSize = 400;
-  active = [];
-  drawFns = [];
-  prepare() {
-    const polygons = this.drawFns = makeText(
-      this.s,
-      this.dx,
-      this.dy,
-      this.size,
-      this.font,
-      // sampleRate
-      5
-    ).map((polygon) => renderer.compilePolygon(polygon));
-  }
-  draw() {
-    for (const [i, draw2] of this.drawFns.entries()) {
-      draw2(
-        { color: this.active[i] ? [1, 0, 0, 1] : this.color },
-        void 0,
-        (type) => {
-          switch (type) {
-            case "pointerenter": {
-              this.active[i] = true;
-              return true;
-            }
-            case "pointerleave": {
-              this.active[i] = false;
-              return true;
-            }
-            case "click": {
-              return this.onClick?.() ?? false;
-            }
-            default:
-              return false;
-          }
-        },
-        debug
-      );
-    }
-  }
-};
 var canvas = document.querySelector("#test");
 var renderer = new GPURenderer(canvas);
 canvas.addEventListener("click", () => {
   debug = !debug;
   renderer.drawScreen();
 });
-renderer.register(new Tiger(2e3, 500));
-renderer.register(
-  new Text("CPU Triangulation &", 100, 200, 100, FontBook.Vollkorn)
-);
-renderer.register(
-  new Text("GPU Rasterization", 100, 300, 100, FontBook.Vollkorn)
-);
-renderer.register(
-  new Text(
-    "Click anywhere to view the triangular mesh",
-    100,
-    500,
-    50,
-    FontBook.Zapfino,
-    [0, 0, 0, 1]
-  )
-);
+renderer.register(new Tiger(640, 640));
 /*! Bundled license information:
 
 opentype.js/dist/opentype.module.js:

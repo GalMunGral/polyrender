@@ -178,23 +178,4 @@ canvas.addEventListener("click", () => {
   renderer.drawScreen();
 });
 
-renderer.register(new Tiger(2000, 500));
-
-renderer.register(
-  new Text("CPU Triangulation &", 100, 200, 100, FontBook.Vollkorn)
-);
-
-renderer.register(
-  new Text("GPU Rasterization", 100, 300, 100, FontBook.Vollkorn)
-);
-
-renderer.register(
-  new Text(
-    "Click anywhere to view the triangular mesh",
-    100,
-    500,
-    50,
-    FontBook.Zapfino,
-    [0, 0, 0, 1]
-  )
-);
+renderer.register(new Tiger(640, 640));

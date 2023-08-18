@@ -118,7 +118,7 @@ class Tiger {
 }
 
 class Text {
-  private fontSize = 400;
+  // private fontSize = 400;
   private active: Array<boolean> = [];
   private drawFns: Array<DrawFn> = [];
 
@@ -184,35 +184,16 @@ canvas.addEventListener("click", () => {
   renderer.drawScreen();
 });
 
-renderer.register(new Tiger(2000, 500));
-
-renderer.register(
-  new Text("CPU Rasterization &", 100, 200, 100, FontBook.Vollkorn)
-);
-
-renderer.register(
-  new Text("GPU Compositing", 100, 300, 100, FontBook.Vollkorn)
-);
+renderer.register(new Tiger(640, 640));
 
 renderer.register(
   new Text(
-    "Click anywhere to view the triangular mesh",
+    "CPU (click me)",
     100,
-    500,
-    50,
-    FontBook.Zapfino,
-    [0, 0, 0, 1]
-  )
-);
-
-renderer.register(
-  new Text(
-    "CPU Rendered Version",
+    200,
     100,
-    800,
-    80,
     FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
+    [1, 1, 1, 1],
     () => {
       location.href = "./cpu";
       return true;
@@ -222,17 +203,15 @@ renderer.register(
 
 renderer.register(
   new Text(
-    "GPU Rendered Version",
+    "GPU (click me)",
     100,
-    700,
-    80,
+    300,
+    100,
     FontBook.BlackOpsOne,
-    [0, 0, 0, 0.5],
+    [1, 1, 1, 1],
     () => {
       location.href = "./gpu";
       return true;
     }
   )
 );
-
-// renderer.register(new Cursor());
