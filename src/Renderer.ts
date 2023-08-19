@@ -282,7 +282,7 @@ export class Renderer {
 
       if (debug) {
         gl.uniform1i(debugUniformLoc, 1);
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length, gl.UNSIGNED_SHORT, 0);
       } else {

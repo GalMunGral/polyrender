@@ -1,8 +1,8 @@
-import { DrawFn, InteractiveObject, Renderer } from "polyrender/Renderer";
+import { DrawFn, Renderer } from "polyrender/Renderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
 import { parseColor } from "./util";
-import { makeStrokeCombined, sampleCircle } from "polyrender/Stroke";
+import { makeStrokeCombined } from "polyrender/Stroke";
 import { Font } from "opentype.js";
 
 // let sampleRate = 5;
@@ -149,7 +149,7 @@ class Text {
   public draw() {
     for (const [i, draw] of this.drawFns.entries()) {
       draw(
-        { color: this.active.some((a) => a) ? [1, 0, 0, 1] : this.color },
+        { color: this.active.some((a) => a) ? [0.5, 0.5, 0.5, 1] : this.color },
         {
           // scale: this.active[i] ? 1.1 : 1,
         },
@@ -184,34 +184,25 @@ canvas.addEventListener("click", () => {
   renderer.drawScreen();
 });
 
-renderer.register(new Tiger(640, 640));
+renderer.register(new Tiger(600, 600));
 
 renderer.register(
-  new Text(
-    "CPU (click me)",
-    100,
-    200,
-    100,
-    FontBook.BlackOpsOne,
-    [1, 1, 1, 1],
-    () => {
-      location.href = "./cpu";
-      return true;
-    }
-  )
+  new Text("Hybrid", 50, 100, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./index";
+    return true;
+  })
 );
 
 renderer.register(
-  new Text(
-    "GPU (click me)",
-    100,
-    300,
-    100,
-    FontBook.BlackOpsOne,
-    [1, 1, 1, 1],
-    () => {
-      location.href = "./gpu";
-      return true;
-    }
-  )
+  new Text("GPU", 50, 200, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./gpu";
+    return true;
+  })
+);
+
+renderer.register(
+  new Text("CPU", 50, 300, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./cpu";
+    return true;
+  })
 );

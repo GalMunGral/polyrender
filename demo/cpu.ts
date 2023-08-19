@@ -180,14 +180,59 @@ class Text {
   }
 }
 
-const tiger = new Tiger(640, 640);
+const tiger = new Tiger(600, 600);
+
+const text1 = new Text(
+  "Hybrid",
+  50,
+  100,
+  100,
+  FontBook.BlackOpsOne,
+  [1, 1, 1, 1],
+  () => {
+    location.href = "./index";
+    return true;
+  }
+);
+
+const text2 = new Text(
+  "GPU",
+  50,
+  200,
+  100,
+  FontBook.BlackOpsOne,
+  [1, 1, 1, 1],
+  () => {
+    location.href = "./gpu";
+    return true;
+  }
+);
+
+const text3 = new Text(
+  "CPU",
+  50,
+  300,
+  100,
+  FontBook.BlackOpsOne,
+  [1, 1, 1, 1],
+  () => {
+    location.href = "./cpu";
+    return true;
+  }
+);
 
 const imageData = new ImageData(canvas.width, canvas.height);
 tiger.draw(imageData);
+text1.draw(imageData);
+text2.draw(imageData);
+text3.draw(imageData);
 
 canvas.onclick = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const imageData = new ImageData(canvas.width, canvas.height);
+  text1.draw(imageData);
+  text2.draw(imageData);
+  text3.draw(imageData);
   tiger.drawWithDelay(imageData);
 };
 

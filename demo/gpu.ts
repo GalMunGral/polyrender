@@ -1,8 +1,8 @@
-import { DrawFn, InteractiveObject, GPURenderer } from "polyrender/GPURenderer";
+import { DrawFn, GPURenderer } from "polyrender/GPURenderer";
 import { toPolygon } from "polyrender/Path.js";
 import { FontBook, makeText } from "polyrender/Text";
 import { parseColor } from "./util";
-import { makeStroke, sampleCircle } from "polyrender/Stroke";
+import { makeStroke } from "polyrender/Stroke";
 import { Font } from "opentype.js";
 
 let debug = false;
@@ -143,9 +143,10 @@ class Text {
   }
 
   public draw() {
+    const active = this.active.some(Boolean);
     for (const [i, draw] of this.drawFns.entries()) {
       draw(
-        { color: this.active[i] ? [1, 0, 0, 1] : this.color },
+        { color: active ? [0.5, 0.5, 0.5, 1] : this.color },
         undefined,
         (type) => {
           switch (type) {
@@ -178,4 +179,25 @@ canvas.addEventListener("click", () => {
   renderer.drawScreen();
 });
 
-renderer.register(new Tiger(640, 640));
+renderer.register(new Tiger(600, 600));
+
+renderer.register(
+  new Text("Hybrid", 50, 100, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./index";
+    return true;
+  })
+);
+
+renderer.register(
+  new Text("GPU", 50, 200, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./gpu";
+    return true;
+  })
+);
+
+renderer.register(
+  new Text("CPU", 50, 300, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./cpu";
+    return true;
+  })
+);

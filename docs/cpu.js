@@ -13205,6 +13205,63 @@ var FontBook = {
   Vollkorn: parseBuffer(await (await fetch("./VollkornSC.ttf")).arrayBuffer()),
   BlackOpsOne: parseBuffer(await (await fetch("./BlackOpsOne.ttf")).arrayBuffer())
 };
+function makeText(text, dx, dy, size, font, samplingRate) {
+  const polygons = [];
+  for (const path of font.getPaths(text, dx, dy, size)) {
+    let start = null;
+    let prev = null;
+    let pathSet = [];
+    let current = new CyclicList();
+    for (const cmd of path.commands) {
+      switch (cmd.type) {
+        case "M": {
+          start = prev = new Vector(cmd.x, cmd.y);
+          break;
+        }
+        case "L": {
+          const p = new Vector(cmd.x, cmd.y);
+          current.push(prev);
+          prev = p;
+          break;
+        }
+        case "Q": {
+          current.push(
+            ...sampleBezier(
+              [prev, new Vector(cmd.x1, cmd.y1), new Vector(cmd.x, cmd.y)],
+              samplingRate
+            )
+          );
+          prev = new Vector(cmd.x, cmd.y);
+          break;
+        }
+        case "C": {
+          current.push(
+            ...sampleBezier(
+              [
+                prev,
+                new Vector(cmd.x1, cmd.y1),
+                new Vector(cmd.x2, cmd.y2),
+                new Vector(cmd.x, cmd.y)
+              ],
+              samplingRate
+            )
+          );
+          prev = new Vector(cmd.x, cmd.y);
+          break;
+        }
+        case "Z": {
+          current.push(start);
+          pathSet.push(current);
+          current = new CyclicList();
+          prev = null;
+          break;
+        }
+      }
+    }
+    polygons.push(new Polygon(pathSet));
+  }
+  return polygons.filter((p) => p.paths.length);
+}
 
 // demo/cpu.ts
 var canvas = document.querySelector("#test");
@@ -13312,12 +13369,93 @@ var Tiger = class {
     })();
   }
 };
-var tiger = new Tiger(640, 640);
+var Text = class {
+  constructor(s, dx, dy, size, font = FontBook.NotoSerif, color = [0, 0, 0, 1], onClick) {
+    this.s = s;
+    this.dx = dx;
+    this.dy = dy;
+    this.size = size;
+    this.font = font;
+    this.color = color;
+    this.onClick = onClick;
+    this.active = Array(s.length).fill(false);
+    this.prepare();
+  }
+  fontSize = 400;
+  active = [];
+  polygons = [];
+  prepare() {
+    this.polygons = makeText(
+      this.s,
+      this.dx,
+      this.dy,
+      this.size,
+      this.font,
+      32
+    );
+  }
+  draw(imageData2) {
+    const [r, g, b, a] = this.color.map((x) => Math.round(x * 255));
+    for (let i = 0; i < this.polygons.length; ++i) {
+      this.polygons[i].traverse((x, y) => {
+        const i2 = (y * canvas.width + x) * 4;
+        imageData2.data[i2] = r;
+        imageData2.data[i2 + 1] = g;
+        imageData2.data[i2 + 2] = b;
+        imageData2.data[i2 + 3] = a;
+      });
+    }
+    ctx.putImageData(imageData2, 0, 0);
+  }
+};
+var tiger = new Tiger(600, 600);
+var text1 = new Text(
+  "Hybrid",
+  50,
+  100,
+  100,
+  FontBook.BlackOpsOne,
+  [1, 1, 1, 1],
+  () => {
+    location.href = "./index";
+    return true;
+  }
+);
+var text2 = new Text(
+  "GPU",
+  50,
+  200,
+  100,
+  FontBook.BlackOpsOne,
+  [1, 1, 1, 1],
+  () => {
+    location.href = "./gpu";
+    return true;
+  }
+);
+var text3 = new Text(
+  "CPU",
+  50,
+  300,
+  100,
+  FontBook.BlackOpsOne,
+  [1, 1, 1, 1],
+  () => {
+    location.href = "./cpu";
+    return true;
+  }
+);
 var imageData = new ImageData(canvas.width, canvas.height);
 tiger.draw(imageData);
+text1.draw(imageData);
+text2.draw(imageData);
+text3.draw(imageData);
 canvas.onclick = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const imageData2 = new ImageData(canvas.width, canvas.height);
+  text1.draw(imageData2);
+  text2.draw(imageData2);
+  text3.draw(imageData2);
   tiger.drawWithDelay(imageData2);
 };
 function parseColor(s) {

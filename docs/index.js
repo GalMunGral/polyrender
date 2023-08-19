@@ -297,7 +297,7 @@ var Renderer = class {
       );
       if (debug2) {
         gl.uniform1i(debugUniformLoc, 1);
-        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 0.5]);
+        gl.uniform4fv(colorUniformLoc, [0, 0, 0, 1]);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, lineBuf);
         gl.drawElements(gl.LINES, lines.length, gl.UNSIGNED_SHORT, 0);
       } else {
@@ -13712,7 +13712,7 @@ var Text = class {
   draw() {
     for (const [i, draw2] of this.drawFns.entries()) {
       draw2(
-        { color: this.active.some((a) => a) ? [1, 0, 0, 1] : this.color },
+        { color: this.active.some((a) => a) ? [0.5, 0.5, 0.5, 1] : this.color },
         {
           // scale: this.active[i] ? 1.1 : 1,
         },
@@ -13744,34 +13744,24 @@ canvas.addEventListener("click", () => {
   debug = !debug;
   renderer.drawScreen();
 });
-renderer.register(new Tiger(640, 640));
+renderer.register(new Tiger(600, 600));
 renderer.register(
-  new Text(
-    "CPU (click me)",
-    100,
-    200,
-    100,
-    FontBook.BlackOpsOne,
-    [1, 1, 1, 1],
-    () => {
-      location.href = "./cpu";
-      return true;
-    }
-  )
+  new Text("Hybrid", 50, 100, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./index";
+    return true;
+  })
 );
 renderer.register(
-  new Text(
-    "GPU (click me)",
-    100,
-    300,
-    100,
-    FontBook.BlackOpsOne,
-    [1, 1, 1, 1],
-    () => {
-      location.href = "./gpu";
-      return true;
-    }
-  )
+  new Text("GPU", 50, 200, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./gpu";
+    return true;
+  })
+);
+renderer.register(
+  new Text("CPU", 50, 300, 100, FontBook.BlackOpsOne, [1, 1, 1, 1], () => {
+    location.href = "./cpu";
+    return true;
+  })
 );
 /*! Bundled license information:
 
