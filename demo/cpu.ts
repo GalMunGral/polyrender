@@ -4,6 +4,22 @@ import { Polygon } from "polyrender/Polygon";
 import { makeStroke } from "polyrender/Stroke";
 import { FontBook, makeText } from "polyrender/Text";
 
+let PIXELS_PER_FRAME = 1;
+const slider = document.createElement("input");
+slider.type = "range";
+slider.min = "1";
+slider.max = "10001";
+slider.defaultValue = "1";
+slider.onchange = () => {
+  PIXELS_PER_FRAME = parseInt(slider.value);
+};
+slider.style.position = "fixed";
+slider.style.top = "0px";
+slider.style.width = "200px";
+slider.style.right = "0px";
+slider.style.margin = "50px";
+document.body.append(slider);
+
 const canvas = document.querySelector("#test") as HTMLCanvasElement;
 document.body.style.margin = "0px";
 canvas.width = window.innerWidth * devicePixelRatio;
@@ -113,7 +129,7 @@ class Tiger {
     const it = pixels(this);
     const that = this;
     (function drawChunkOfPixels() {
-      let n = 5000;
+      let n = PIXELS_PER_FRAME;
       while (n--) {
         const { done, value } = it.next();
         if (done) {

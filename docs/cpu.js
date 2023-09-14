@@ -13264,6 +13264,21 @@ function makeText(text, dx, dy, size, font, samplingRate) {
 }
 
 // demo/cpu.ts
+var PIXELS_PER_FRAME = 1;
+var slider = document.createElement("input");
+slider.type = "range";
+slider.min = "1";
+slider.max = "10001";
+slider.defaultValue = "1";
+slider.onchange = () => {
+  PIXELS_PER_FRAME = parseInt(slider.value);
+};
+slider.style.position = "fixed";
+slider.style.top = "0px";
+slider.style.width = "200px";
+slider.style.right = "0px";
+slider.style.margin = "50px";
+document.body.append(slider);
 var canvas = document.querySelector("#test");
 document.body.style.margin = "0px";
 canvas.width = window.innerWidth * devicePixelRatio;
@@ -13347,7 +13362,7 @@ var Tiger = class {
     const it = pixels(this);
     const that = this;
     (function drawChunkOfPixels() {
-      let n = 5e3;
+      let n = PIXELS_PER_FRAME;
       while (n--) {
         const { done, value } = it.next();
         if (done) {
