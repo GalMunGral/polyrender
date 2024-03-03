@@ -1,4 +1,4 @@
-GPU-accelerated polygon rasterizer
+GPU-accelerated 2D Polygon Renderer
 
 Demo:
 - CPU rasterization: https://galmungral.github.io/polyrender/cpu
