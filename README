@@ -1,0 +1,6 @@
+GPU-accelerated polygon rasterizer
+
+Demo:
+- CPU rasterization: https://galmungral.github.io/polyrender/cpu
+- CPU triangulation, GPU rasterization: https://galmungral.github.io/polyrender/gpu
+- CPU rasterization, GPU compositing: https://galmungral.github.io/polyrender
