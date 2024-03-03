@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "esbuild demo/index.ts demo/gpu.ts demo/cpu.ts --bundle --format=esm --outdir=docs"
+    "build": "esbuild demo/index.ts demo/gpu.ts demo/cpu.ts --bundle --format=esm --outdir=dist && cp demo/assets/* dist"
   },
   "author": "",
   "license": "ISC",
